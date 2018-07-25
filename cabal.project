@@ -1,0 +1,3 @@
+packages: . bound-extras
+package OL-I
+  ghc-options: -Werror

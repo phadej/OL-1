@@ -1,0 +1,3 @@
+(id id)
+[(2-tuple id (forall a (-> a a)))]
+(2-tuple (the (poly ? (id id)) (forall ? (-> ? ?))) [])

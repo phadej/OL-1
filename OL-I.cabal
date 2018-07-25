@@ -1,0 +1,85 @@
+cabal-version: 2.2
+name: OL-I
+version: 1
+
+synopsis: Oleg's Language I
+category: Language
+description:
+  Predicative System-F based language.
+  Uses LISP-y syntax.
+
+author:     Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer: Oleg Grenrus <oleg.grenrus@iki.fi>
+
+license: GPL-2.0-only OR GPL-3.0-only
+
+tested-with: 
+  GHC == 8.2.2
+   || == 8.4.3
+
+library
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:   src
+  default-extensions:
+    DataKinds
+    DefaultSignatures
+    DeriveFoldable
+    DeriveFunctor
+    DeriveTraversable
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    RankNTypes
+    ScopedTypeVariables
+    TypeOperators
+
+  build-depends:
+    , base  ^>=4.10.1.0 || ^>=4.11.1.0
+    , binary
+    , bound
+    , bound-extras
+    , containers
+    , deepseq
+    , hashable
+    , logict
+    , mtl
+    , parsers
+    , pretty-compact
+    , text
+    , transformers
+    , trifecta
+    , unification-fd
+
+  exposed-modules:
+    OL1
+    OL1.Check
+    OL1.Eval
+    OL1.Expr
+    OL1.Name
+    OL1.Pretty
+    OL1.Smart
+    OL1.Synth
+    OL1.Type
+    OL1.Value
+    OL1.Error
+
+test-suite golden
+  type:             exitcode-stdio-1.0
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:   test
+  main-is:          Golden.hs
+  build-depends:
+    , base
+    , containers
+    , filepath
+    , OL-I
+    , pretty-compact
+    , tasty
+    , tasty-golden
+    , utf8-string
+  default-extensions:
+    OverloadedStrings
