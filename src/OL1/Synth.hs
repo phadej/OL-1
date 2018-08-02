@@ -103,7 +103,7 @@ synth ctx
         ty' <- traverse U.applyBindings ty
 
         warnings <- for (Map.toList freeVars) $ \(a, v) ->
-            NotInScope a . ppr . flattenMono <$> U.applyBindings (U.UVar v)
+            NotInScope a . ppr . flattenMonoDoc <$> U.applyBindings (U.UVar v)
 
         return (expr4, ty', warnings)
 
@@ -140,7 +140,13 @@ flattenMono :: U b -> Mono (Either U.IntVar b)
 flattenMono (U.UVar v)             = T (Left v)
 flattenMono (U.UTerm (TF x))       = T (Right x)
 flattenMono (U.UTerm (a :=> b))    = flattenMono a :-> flattenMono b
-flattenMono (U.UTerm (Skolem n _)) = error $ "escaping skolem" ++ show n -- TODO
+flattenMono (U.UTerm (Skolem n _)) = error $ "panic! escaping skolem" ++ show n -- TODO
+
+flattenMonoDoc :: Pretty b => U b -> Mono (Either U.IntVar Doc)
+flattenMonoDoc (U.UVar v)             = T (Left v)
+flattenMonoDoc (U.UTerm (TF x))       = T (Right (ppr x))
+flattenMonoDoc (U.UTerm (a :=> b))    = flattenMonoDoc a :-> flattenMonoDoc b
+flattenMonoDoc (U.UTerm (Skolem n v)) = T (Right (sexpr (PP.text "skolem") [ppr n, ppr v]))
 
 flattenPoly :: Poly (U b) -> Poly (Either U.IntVar b)
 flattenPoly t = t >>== flattenMono

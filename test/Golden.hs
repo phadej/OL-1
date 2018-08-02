@@ -3,13 +3,14 @@ module Main (main) where
 
 import OL1
 
+import Data.Bifunctor    (first)
 import System.FilePath   ((-<.>), (</>))
-import Test.Tasty        (defaultMain, testGroup, TestTree)
+import Test.Tasty        (TestTree, defaultMain, testGroup)
 import Test.Tasty.Golden (goldenVsString)
 
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
-import qualified Text.PrettyPrint.Compact   as PP
-import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict           as Map
+import qualified Text.PrettyPrint.Compact  as PP
 
 main :: IO ()
 main = defaultMain $ testGroup "Golden"
@@ -28,9 +29,20 @@ main = defaultMain $ testGroup "Golden"
         }
     , golden "type-error" $ defCase
         { term = "f" $$ "x"
-        , ctx = 
+        , ctx =
             [ "f" ~> Mono $ "A" :-> "B"
             , "x" ~> Mono "C"
+            ]
+        }
+    , golden "rigid" $ defCase
+        { term = first Just $
+            Ann (poly_ "x" "f") (forall_ "a" $ "a" :-> "a")
+        }
+    , golden "rigid2" $ defCase
+        { term = first Just $
+            Ann (poly_ "x" "f") (forall_ "a" $ "a" :-> "a")
+        , ctx =
+            [ "f" ~> Mono $ "A" :-> "A"
             ]
         }
     ]
