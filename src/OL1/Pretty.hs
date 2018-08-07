@@ -51,6 +51,9 @@ instance Pretty () where
 instance (Pretty a, Pretty b) => Pretty (a, b) where
     ppr (a, b) = sexpr (PP.text "2-tuple") [ppr a, ppr b]
 
+instance (Pretty a, Pretty b, Pretty c) => Pretty (a, b, c) where
+    ppr (a, b, c) = sexpr (PP.text "3-tuple") [ppr a, ppr b, ppr c]
+
 instance Pretty a => Pretty (Maybe a) where
     ppr = maybe (PP.char '?') ppr
 
