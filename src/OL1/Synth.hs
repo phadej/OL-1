@@ -182,12 +182,10 @@ wrap :: U b -> Poly (U b)
 wrap = Mono . T
 
 synInfer
-    :: (Eq b, Pretty a, Pretty b, Monad m)
+    :: (Eq b, Pretty a, Pretty b)
     => [Doc]
     -> Inf (U b) (Poly (U b), a)  -- ^ terms with meta leaves
-    -> U.EitherKT Err
-        (U.IntBindingT (MonoF b) m)
-        (Inf (U b) a, Poly (U b))
+    -> Unify b (Inf (U b) a, Poly (U b))
 synInfer ts term = case term of
     V (ty, a) -> pure (V a, ty)
     Ann x t   -> do
@@ -206,14 +204,12 @@ synInfer ts term = case term of
     ts'     = pprTerm : ts
 
 sysInferApp
-    :: (Eq b, Pretty a, Pretty b, Monad m)
+    :: (Eq b, Pretty a, Pretty b)
     => [Doc]
     -> Inf (U b) a
     -> Poly (U.UTerm (MonoF b) U.IntVar)
     -> Chk (U b) (Poly (U b), a)
-    -> U.EitherKT Err
-        (U.IntBindingT (MonoF b) m)
-        (Inf (U b) a, Poly (U b))
+    -> Unify b (Inf (U b) a, Poly (U b))
 sysInferApp ts' f ab x = case ab of
     Mono (T ab') -> do
         a        <- U.UVar <$> lift U.freeVar
@@ -234,16 +230,16 @@ ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> Doc
 ppr' x = ppr (snd <$> x)
 
 newSkolem
-    :: (Eq b, Pretty b, Monad m)
-    => N -> U.EitherKT Err (U.IntBindingT (MonoF b) m) (Mono (U b))
+    :: (Eq b, Pretty b)
+    => N -> Unify b (Mono (U b))
 newSkolem n = T . U.UTerm . Skolem n <$> lift U.freeVar
 
 unifyPoly
-    :: forall b a m. (Monad m, Eq b, Pretty b)
+    :: forall b a. (Eq b, Pretty b)
     => Inf (U b) a
     -> Poly (U b) -- inferred
     -> Poly (U b) -- actual
-    -> U.EitherKT Err (U.IntBindingT (MonoF b) m) (Inf (U b) a)
+    -> Unify b (Inf (U b) a)
 unifyPoly u (Mono a)     (Mono b)      = do
     _ <- U.unify (toU a) (toU b)
     return u
@@ -264,11 +260,11 @@ unifyPoly _ a@Mono {} b@Forall {} = throwError $ TypeMismatch
     (ppr a) (ppr b) (PP.text "?") []
 
 synCheck
-    :: forall a b m. (Eq b, Pretty a, Pretty b, Monad m)
+    :: forall a b. (Eq b, Pretty a, Pretty b)
     => [Doc]
     -> Chk (U b) (Poly (U b), a)
     -> Poly (U b)
-    -> U.EitherKT Err (U.IntBindingT (MonoF b) m) (Chk (U b) a)
+    -> Unify b (Chk (U b) a)
 synCheck ts term ty = case term of
     Inf u -> do
         (u', t) <- synInfer ts' u
