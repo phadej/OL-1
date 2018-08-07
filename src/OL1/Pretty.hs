@@ -2,11 +2,12 @@
 module OL1.Pretty where
 
 import Bound.Scope.Simple (Scope (..))
-import Bound.ScopeT       (ScopeT (..))
 import Bound.ScopeH       (ScopeH (..))
+import Bound.ScopeT       (ScopeT (..))
 import Bound.Var          (Var (..))
 import Data.Text          (Text)
 import Data.Void          (Void, absurd)
+import Debug.Trace        (trace)
 
 import qualified Control.Unification        as U
 import qualified Control.Unification.IntVar as U
@@ -40,6 +41,9 @@ prettyPut = putStrLn . pretty
 sexpr :: Doc -> [Doc] -> Doc
 sexpr f [] = PP.parens f
 sexpr f xs = PP.parens $ PP.hang 2 f (PP.sep xs)
+
+tracePretty :: Pretty a => String -> a -> b -> b
+tracePretty tag x = trace (PP.render $ PP.text tag PP.</> ppr x)
 
 -------------------------------------------------------------------------------
 -- Instances

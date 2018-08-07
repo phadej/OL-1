@@ -231,8 +231,12 @@ ppr' x = ppr (snd <$> x)
 
 newSkolem
     :: (Eq b, Pretty b)
-    => N -> Unify b (Mono (U b))
-newSkolem n = T . U.UTerm . Skolem n <$> lift U.freeVar
+    => N -> Unify b (U b)
+newSkolem n = U.UTerm . Skolem n <$> lift U.freeVar
+
+eqSkolem :: U b -> U b -> Bool
+eqSkolem (U.UTerm (Skolem _ a)) (U.UTerm (Skolem _ b)) = a == b
+eqSkolem _ _ = False
 
 unifyPoly
     :: forall b a. (Eq b, Pretty b)
@@ -245,7 +249,7 @@ unifyPoly u (Mono a)     (Mono b)      = do
     return u
 unifyPoly u (Forall n a) (Forall _ b) = do
     -- make a skolem from new variable
-    sko <- newSkolem n
+    sko <- T <$> newSkolem n
     let a' = instantiate1H sko a
     let b' = instantiate1H sko b
     unifyPoly u a' b'
@@ -289,12 +293,16 @@ synCheck ts term ty = case term of
             e'' <- synCheck ts' e' (Mono b)
             pure $ Lam n $ abstractHEither id e''
         Forall {} ->  throwError $ PolyNotForall (ppr ty) pprTerm ts
-    LamTy n e -> case ty of
-        Forall _m s -> do
+    LamTy n e0 -> case ty of
+        Forall m s -> do
             sko <- newSkolem n
-            let e' = unChk' $ instantiate1H sko e
-            let s' = instantiate1H sko s
-            synCheck ts' e' s'
+            let e1 = unChk' $ instantiate1H (T sko) e0
+            let s' = instantiate1H (T sko) s
+            e2 <- synCheck ts' e1 s'
+            let abst :: U b -> Maybe N
+                abst x | eqSkolem x sko = Just m
+                       | otherwise = Nothing
+            return $ LamTy n $ abstractH abst $ Chk' e2
         _ -> throwError $ PolyNotForall (ppr ty) pprTerm ts
   where
     pprTerm = ppr' term

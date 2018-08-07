@@ -12,14 +12,28 @@ import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import qualified Data.Map.Strict           as Map
 import qualified Text.PrettyPrint.Compact  as PP
 
+idType_ :: Poly Text
+idType_ = forall_ "a" $ "a" :-> "a"
+
+id_ :: Inf (Maybe Text) Text
+id_ = Ann (first Just expr) (fmap Just idType_) where
+    expr = poly_ "a" $ lam_ "x" "x"
+
 main :: IO ()
 main = defaultMain $ testGroup "Golden"
     [ golden "id" $ defCase
         { term = Ann (lam_ "x" "x") wildcard
         }
+    , golden "id-poly" $ defCase
+        { term = id_
+        }
     , golden "id-id" $ defCase
         { term = "id" $$ "id"
-        , ctx  = [ "id" ~> forall_ "a" $ "a" :-> "a" ]
+        , ctx  = [ "id" ~> idType_ ]
+        }
+    , golden "id-id-2" $ defCase
+        { term = id_ $$ "id"
+        , ctx  = [ "id" ~> idType_ ]
         }
     , golden "f-x-y" $ defCase
         { term = "f" $$ "x" $$ "y"
