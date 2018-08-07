@@ -1,0 +1,3 @@
+(the (poly a (fn x x)) (forall a (-> a a)))
+[]
+(3-tuple (the (poly a (fn x x)) (forall a (-> a a))) (forall a (-> a a)) [])
