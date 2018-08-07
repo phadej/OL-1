@@ -41,6 +41,7 @@ data Chk (b :: Type) (a :: Type)
     | LamTy N (ScopeH N (Chk' a) Mono b)
     -- TODO: Record
 
+newtype Inf' a b = Inf' { unInf' :: Inf b a }
 newtype Chk' a b = Chk' { unChk' :: Chk b a }
 
 overChk' :: (Chk b a -> Chk d c) -> Chk' a b -> Chk' c d
@@ -66,14 +67,10 @@ unAnn x         = Inf x
 -- Instances
 -------------------------------------------------------------------------------
 
-instance Functor (Inf b) where
-    fmap = second
-
-instance Functor (Chk b) where
-    fmap = second
-
-instance Functor (Chk' a) where
-    fmap = second
+instance Functor (Inf b)  where fmap = second
+instance Functor (Chk b)  where fmap = second
+instance Functor (Inf' a) where fmap = second
+instance Functor (Chk' a) where fmap = second
 
 instance Applicative (Inf b) where
     pure  = V
@@ -114,22 +111,32 @@ bindChkMono (Lam n s) k   = Lam n $
 instance Module (Chk' a) Mono where
     Chk' i >>== k = Chk' (bindChkMono i k)
 
+-------------------------------------------------------------------------------
+-- Traverse
+-------------------------------------------------------------------------------
+
 instance Bifunctor  Inf  where bimap = bimapDefault
 instance Bifunctor  Chk  where bimap = bimapDefault
+instance Bifunctor  Inf' where bimap = bimapDefault
 instance Bifunctor  Chk' where bimap = bimapDefault
+
 instance Bifoldable Inf  where bifoldMap = bifoldMapDefault
 instance Bifoldable Chk  where bifoldMap = bifoldMapDefault
+instance Bifoldable Inf' where bifoldMap = bifoldMapDefault
 instance Bifoldable Chk' where bifoldMap = bifoldMapDefault
 
 instance Foldable (Inf  a) where foldMap = bifoldMap mempty
 instance Foldable (Chk  a) where foldMap = bifoldMap mempty
+instance Foldable (Inf' a) where foldMap = bifoldMap mempty
 instance Foldable (Chk' a) where foldMap = bifoldMap mempty
-instance Traversable (Inf a) where traverse = bitraverse pure
-instance Traversable (Chk a) where traverse = bitraverse pure
+
+instance Traversable (Inf a)  where traverse = bitraverse pure
+instance Traversable (Chk a)  where traverse = bitraverse pure
+instance Traversable (Inf' a) where traverse = bitraverse pure
 instance Traversable (Chk' a) where traverse = bitraverse pure
 
-instance Bitraversable Chk' where
-    bitraverse f g = fmap Chk' . bitraverse g f . unChk'
+instance Bitraversable Inf' where bitraverse f g = fmap Inf' . bitraverse g f . unInf'
+instance Bitraversable Chk' where bitraverse f g = fmap Chk' . bitraverse g f . unChk'
 
 instance Bitraversable Inf where
     bitraverse f g = go where
@@ -147,6 +154,9 @@ instance Bitraversable Chk where
     bitraverse f g (LamTy n b) = LamTy n
         <$> bitransverseScopeH (bitraverse g) traverse f b
 
+-------------------------------------------------------------------------------
+-- Eq
+-------------------------------------------------------------------------------
 
 instance Eq b => Eq1 (Inf b) where
     liftEq eq = go where

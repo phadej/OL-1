@@ -10,6 +10,7 @@ import Data.Bifoldable           (bifoldMap)
 import Data.Bifunctor            (Bifunctor (..))
 import Data.Bitraversable        (bitraverse)
 import Data.Functor.Identity     (Identity (..))
+import Data.Functor.Product      (Product (..))
 import Data.Traversable          (for)
 
 import OL1.Error
@@ -98,8 +99,7 @@ synth ctx
 
         -- there is no expr2
         (expr3, ty) <- synInfer [] expr1
-        expr4 <- bitraverse U.applyBindings pure expr3
-        ty' <- traverse U.applyBindings ty
+        Pair (Inf' expr4) ty' <- U.applyBindingsAll $ Pair (Inf' expr3) ty
 
         warnings <- for (Map.toList freeVars) $ \(a, v) ->
             NotInScope a . ppr . flattenMonoDoc <$> U.applyBindings (U.UVar v)
@@ -189,8 +189,8 @@ synInfer
 synInfer ts term = case term of
     V (ty, a) -> pure (V a, ty)
     Ann x t   -> do
-        x' <- synCheck ts' x t
-        pure (Ann x' t, t)
+        (x', t') <- synCheck ts' x t
+        pure (Ann x' t', t')
     App f x   -> do
         (f', ab) <- synInfer ts' f
         sysInferApp ts' f' ab x
@@ -213,12 +213,12 @@ sysInferApp
 sysInferApp ts' f ab x = case ab of
     Mono (T ab') -> do
         a        <- U.UVar <$> lift U.freeVar
+        (x', _)  <- synCheck ts' x (wrap a) -- TODO: synCheckMono
         b        <- U.UVar <$> lift U.freeVar
         _        <- U.unify ab' (U.UTerm (a :=> b))
-        x'       <- synCheck ts' x (wrap a)
         pure (App f x', wrap b)
     Mono (a :-> b) -> do
-        x' <- synCheck ts' x (Mono a)
+        (x', _) <- synCheck ts' x (Mono a)
         pure (App f x', Mono b)
     -- If we try to apply to term-apply to a polymorphic function;
     -- we first specialise
@@ -226,8 +226,9 @@ sysInferApp ts' f ab x = case ab of
         a <- T . U.UVar <$> lift U.freeVar
         sysInferApp ts' (AppTy f a) (instantiate1H a ty) x
 
-ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> Doc
-ppr' x = ppr (snd <$> x)
+-------------------------------------------------------------------------------
+-- Checking
+-------------------------------------------------------------------------------
 
 newSkolem
     :: (Eq b, Pretty b)
@@ -268,12 +269,12 @@ synCheck
     => [Doc]
     -> Chk (U b) (Poly (U b), a)
     -> Poly (U b)
-    -> Unify b (Chk (U b) a)
+    -> Unify b (Chk (U b) a, Poly (U b))
 synCheck ts term ty = case term of
     Inf u -> do
         (u', t) <- synInfer ts' u
         u'' <- unifyPoly u' t ty
-        pure (Inf u'')
+        pure (Inf u'', ty)
     Lam n e  -> case ty of
         Mono (T ab) -> do
             a <- U.UVar <$> lift U.freeVar
@@ -283,27 +284,35 @@ synCheck ts term ty = case term of
                 inst (Left y)         = V (Mono $ T a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
-            e'' <- synCheck ts' e' (Mono (T b))
-            pure $ Lam n $ abstractHEither id e''
+            (e'', _) <- synCheck ts' e' (Mono (T b))
+            pure (Lam n $ abstractHEither id e'', ty)
         Mono (a :-> b) -> do
             let inst :: Either N (Poly (U b), a) -> Inf (U b) (Poly (U b), Either N a)
                 inst (Left y)         = V (Mono a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
-            e'' <- synCheck ts' e' (Mono b)
-            pure $ Lam n $ abstractHEither id e''
+            (e'', _) <- synCheck ts' e' (Mono b)
+            pure (Lam n $ abstractHEither id e'', ty)
         Forall {} ->  throwError $ PolyNotForall (ppr ty) pprTerm ts
     LamTy n e0 -> case ty of
-        Forall m s -> do
+        Forall m s0 -> do
             sko <- newSkolem n
             let e1 = unChk' $ instantiate1H (T sko) e0
-            let s' = instantiate1H (T sko) s
-            e2 <- synCheck ts' e1 s'
+            let s1 = instantiate1H (T sko) s0
+            (e2, s2) <- synCheck ts' e1 s1
             let abst :: U b -> Maybe N
                 abst x | eqSkolem x sko = Just m
-                       | otherwise = Nothing
-            return $ LamTy n $ abstractH abst $ Chk' e2
+                       | otherwise      = Nothing
+            Pair e3 s3 <- U.applyBindingsAll (Pair (Chk' e2) s2)
+            return (LamTy n $ abstractH abst e3, Forall m $ abstractH abst s3)
         _ -> throwError $ PolyNotForall (ppr ty) pprTerm ts
   where
     pprTerm = ppr' term
     ts'     = pprTerm : ts
+
+-------------------------------------------------------------------------------
+-- Helpers
+-------------------------------------------------------------------------------
+
+ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> Doc
+ppr' x = ppr (snd <$> x)

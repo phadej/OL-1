@@ -15,9 +15,11 @@ import qualified Text.PrettyPrint.Compact  as PP
 idType_ :: Poly Text
 idType_ = forall_ "a" $ "a" :-> "a"
 
+idTerm_ :: Chk Text Text
+idTerm_ = poly_ "a" $ lam_ "x" "x"
+
 id_ :: Inf (Maybe Text) Text
-id_ = Ann (first Just expr) (fmap Just idType_) where
-    expr = poly_ "a" $ lam_ "x" "x"
+id_ = Ann (first Just idTerm_) (fmap Just idType_)
 
 main :: IO ()
 main = defaultMain $ testGroup "Golden"
@@ -26,6 +28,9 @@ main = defaultMain $ testGroup "Golden"
         }
     , golden "id-poly" $ defCase
         { term = id_
+        }
+    , golden "id-poly-infer" $ defCase
+        { term = Ann (first Just idTerm_) $ Nothing <$ forall_ "a" ("a" :-> "_")
         }
     , golden "id-id" $ defCase
         { term = "id" $$ "id"
