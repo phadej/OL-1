@@ -18,6 +18,11 @@ data Mono a
     -- TODO: Record
   deriving (Functor, Foldable, Traversable)
 
+data Poly a
+    = Mono (Mono a)
+    | Forall N (ScopeH N Poly Mono a)
+  deriving (Functor, Foldable, Traversable)
+
 instance IsString a => IsString (Mono a) where
     fromString = T . fromString
 
@@ -29,14 +34,13 @@ instance Monad Mono where
     T a >>= k       = k a
     (a :-> b) >>= k = (a >>= k) :-> (b >>= k)
 
-data Poly a
-    = Mono (Mono a)
-    | Forall N (ScopeH N Poly Mono a)
-  deriving (Functor, Foldable, Traversable)
-
 instance Module Poly Mono where
     Mono x     >>== k = Mono (x >>= k)
     Forall n s >>== k = Forall n (s >>== k)
+
+-------------------------------------------------------------------------------
+-- Eq
+-------------------------------------------------------------------------------
 
 instance Eq1 Mono where
     liftEq eq = go where
@@ -55,6 +59,10 @@ instance Eq1 Poly where
 
 instance Eq a => Eq (Mono a) where (==) = eq1
 instance Eq a => Eq (Poly a) where (==) = eq1
+
+-------------------------------------------------------------------------------
+-- Pretty
+-------------------------------------------------------------------------------
 
 instance Pretty1 Mono where
     liftPpr pp = go where
