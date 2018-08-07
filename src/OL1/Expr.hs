@@ -121,6 +121,13 @@ instance Bifoldable Inf  where bifoldMap = bifoldMapDefault
 instance Bifoldable Chk  where bifoldMap = bifoldMapDefault
 instance Bifoldable Chk' where bifoldMap = bifoldMapDefault
 
+instance Foldable (Inf  a) where foldMap = bifoldMap mempty
+instance Foldable (Chk  a) where foldMap = bifoldMap mempty
+instance Foldable (Chk' a) where foldMap = bifoldMap mempty
+instance Traversable (Inf a) where traverse = bitraverse pure
+instance Traversable (Chk a) where traverse = bitraverse pure
+instance Traversable (Chk' a) where traverse = bitraverse pure
+
 instance Bitraversable Chk' where
     bitraverse f g = fmap Chk' . bitraverse g f . unChk'
 
@@ -139,6 +146,7 @@ instance Bitraversable Chk where
         <$> bitraverseScopeH f f g b
     bitraverse f g (LamTy n b) = LamTy n
         <$> bitransverseScopeH (bitraverse g) traverse f b
+
 
 instance Eq b => Eq1 (Inf b) where
     liftEq eq = go where
