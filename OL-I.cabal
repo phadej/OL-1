@@ -13,9 +13,16 @@ maintainer: Oleg Grenrus <oleg.grenrus@iki.fi>
 
 license: GPL-2.0-only OR GPL-3.0-only
 
-tested-with: 
+extra-source-files:
+  golden/*.txt
+
+tested-with:
   GHC == 8.2.2
    || == 8.4.3
+
+source-repository head
+  type:     git
+  location: https://github.com/phadej/OL-1.git
 
 library
   default-language: Haskell2010
