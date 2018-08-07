@@ -72,12 +72,20 @@ golden name Case {..} = goldenVsString name ("golden" </> name -<.> "txt")
     $ PP.render
     $ ppr term
     PP.$$ ppr ctx
-    PP.$$ ppr res
+    PP.$$ ppr resPpr
     PP.$$ mempty
   where
     res     = synth ctx'' term
     ctx'    = Map.fromList ctx
     ctx'' n = Map.lookup n ctx'
+
+    resPpr = do
+        (synTerm, ws) <- res
+        if null ws
+        then do
+            ty <- infer ctx'' synTerm
+            return $ ppr (synTerm, ty, ws)
+        else return $ ppr (synTerm, ws)
 
 wildcard :: Poly (Maybe a)
 wildcard = Mono $ T Nothing

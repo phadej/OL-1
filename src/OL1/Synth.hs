@@ -2,7 +2,6 @@
 module OL1.Synth where
 
 import Bound.ScopeH
-import Control.Monad             (void)
 import Control.Monad.Error.Class (MonadError (..))
 import Control.Monad.Module      (Module (..))
 import Control.Monad.State
@@ -97,8 +96,8 @@ synth ctx
                 freeB Nothing  = U.UVar <$> lift (lift U.freeVar)
             bitraverse freeB freeA expr0
 
-        expr2 <- specialiseInf expr1
-        (expr3, ty) <- synInfer [] expr2
+        -- there is no expr2
+        (expr3, ty) <- synInfer [] expr1
         expr4 <- bitraverse U.applyBindings pure expr3
         ty' <- traverse U.applyBindings ty
 
@@ -115,22 +114,6 @@ data Warning a = NotInScope a Doc
 
 instance Pretty a => Pretty (Warning a) where
     ppr (NotInScope a d) = sexpr (PP.text "not-in-scope") [ppr a, d]
-
--------------------------------------------------------------------------------
--- Specialise
--------------------------------------------------------------------------------
-
-specialiseLeaf :: Eq b => Poly (U b) -> a -> Unify b (Inf (U b) (U b, a))
-specialiseLeaf (Mono t)      a = pure $ V (toU t, a)
-specialiseLeaf (Forall _ ty) a = do
-    t <- T . U.UVar <$> lift U.freeVar
-    specialiseLeaf (instantiate1H t ty) a
-
-specialiseInf
-    :: Eq b
-    => Inf (U b) (Poly (U b), a)
-    -> Unify b (Inf (U b) (U b, a))
-specialiseInf = fmap join . bitraverse pure (uncurry specialiseLeaf)
 
 -------------------------------------------------------------------------------
 -- Generalise
@@ -201,28 +184,18 @@ wrap = Mono . T
 synInfer
     :: (Eq b, Pretty a, Pretty b, Monad m)
     => [Doc]
-    -> Inf (U b) (U b, a)  -- ^ terms with meta leaves
+    -> Inf (U b) (Poly (U b), a)  -- ^ terms with meta leaves
     -> U.EitherKT Err
         (U.IntBindingT (MonoF b) m)
         (Inf (U b) a, Poly (U b))
 synInfer ts term = case term of
-    V (ty, a) -> pure (V a, wrap ty)
+    V (ty, a) -> pure (V a, ty)
     Ann x t   -> do
         x' <- synCheck ts' x t
         pure (Ann x' t, t)
     App f x   -> do
         (f', ab) <- synInfer ts' f
-        case ab of
-            Mono (T ab') -> do
-                a        <- U.UVar <$> lift U.freeVar
-                b        <- U.UVar <$> lift U.freeVar
-                _        <- U.unify ab' (U.UTerm (a :=> b))
-                x'       <- synCheck ts' x (wrap a)
-                pure (App f' x', wrap b)
-            Mono (a :-> b) -> do
-                x' <- synCheck ts' x (Mono a)
-                pure (App f' x', Mono b)
-            _ -> throwError $ NotAFunction (ppr ab) (ppr' f) (ppr' x) ts'
+        sysInferApp ts' f' ab x
     AppTy x t -> do
         (x', xt) <- synInfer ts' x
         case xt of
@@ -231,6 +204,31 @@ synInfer ts term = case term of
   where
     pprTerm = ppr (fmap (uncurry $ \t x -> sexpr (PP.text "the") [ ppr t , ppr x]) term)
     ts'     = pprTerm : ts
+
+sysInferApp
+    :: (Eq b, Pretty a, Pretty b, Monad m)
+    => [Doc]
+    -> Inf (U b) a
+    -> Poly (U.UTerm (MonoF b) U.IntVar)
+    -> Chk (U b) (Poly (U b), a)
+    -> U.EitherKT Err
+        (U.IntBindingT (MonoF b) m)
+        (Inf (U b) a, Poly (U b))
+sysInferApp ts' f ab x = case ab of
+    Mono (T ab') -> do
+        a        <- U.UVar <$> lift U.freeVar
+        b        <- U.UVar <$> lift U.freeVar
+        _        <- U.unify ab' (U.UTerm (a :=> b))
+        x'       <- synCheck ts' x (wrap a)
+        pure (App f x', wrap b)
+    Mono (a :-> b) -> do
+        x' <- synCheck ts' x (Mono a)
+        pure (App f x', Mono b)
+    -- If we try to apply to term-apply to a polymorphic function;
+    -- we first specialise
+    Forall _n ty -> do
+        a <- T . U.UVar <$> lift U.freeVar
+        sysInferApp ts' (AppTy f a) (instantiate1H a ty) x
 
 ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> Doc
 ppr' x = ppr (snd <$> x)
@@ -241,49 +239,55 @@ newSkolem
 newSkolem n = T . U.UTerm . Skolem n <$> lift U.freeVar
 
 unifyPoly
-    :: forall b m. (Monad m, Eq b, Pretty b)
-    => Poly (U b)
-    -> Poly (U b)
-    -> U.EitherKT Err (U.IntBindingT (MonoF b) m) ()
-unifyPoly (Mono a)     (Mono b)      = void $
-    U.unify (toU a) (toU b)
-unifyPoly (Forall n a) (Forall _ b) = void $ do
+    :: forall b a m. (Monad m, Eq b, Pretty b)
+    => Inf (U b) a
+    -> Poly (U b) -- inferred
+    -> Poly (U b) -- actual
+    -> U.EitherKT Err (U.IntBindingT (MonoF b) m) (Inf (U b) a)
+unifyPoly u (Mono a)     (Mono b)      = do
+    _ <- U.unify (toU a) (toU b)
+    return u
+unifyPoly u (Forall n a) (Forall _ b) = do
     -- make a skolem from new variable
     sko <- newSkolem n
     let a' = instantiate1H sko a
     let b' = instantiate1H sko b
-    unifyPoly a' b'
+    unifyPoly u a' b'
 
-unifyPoly a@Mono   {} b = throwError $ TypeMismatch
-    (ppr a) (ppr b) (PP.text "?") []
-unifyPoly a@Forall {} b = throwError $ TypeMismatch
+-- If we need a monomorphic value, but it's known to be polymorphic:
+-- We specialise with fresh metavar.
+unifyPoly u (Forall _ b) t@Mono {} = do
+    a <- T . U.UVar <$> lift U.freeVar
+    unifyPoly (AppTy u a) (instantiate1H a b) t
+
+unifyPoly _ a@Mono {} b@Forall {} = throwError $ TypeMismatch
     (ppr a) (ppr b) (PP.text "?") []
 
 synCheck
     :: forall a b m. (Eq b, Pretty a, Pretty b, Monad m)
     => [Doc]
-    -> Chk (U b) (U b, a)
+    -> Chk (U b) (Poly (U b), a)
     -> Poly (U b)
     -> U.EitherKT Err (U.IntBindingT (MonoF b) m) (Chk (U b) a)
 synCheck ts term ty = case term of
     Inf u -> do
         (u', t) <- synInfer ts' u
-        unifyPoly t ty
-        pure (Inf u')
+        u'' <- unifyPoly u' t ty
+        pure (Inf u'')
     Lam n e  -> case ty of
         Mono (T ab) -> do
             a <- U.UVar <$> lift U.freeVar
             b <- U.UVar <$> lift U.freeVar
             _ <- U.unify ab (U.UTerm (a :=> b))
-            let inst :: Either N (U b, a) -> Inf (U b) (U b, Either N a)
-                inst (Left y)         = V (a, Left y)
+            let inst :: Either N (Poly (U b), a) -> Inf (U b) (Poly (U b), Either N a)
+                inst (Left y)         = V (Mono $ T a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
             e'' <- synCheck ts' e' (Mono (T b))
             pure $ Lam n $ abstractHEither id e''
         Mono (a :-> b) -> do
-            let inst :: Either N (U b, a) -> Inf (U b) (U b, Either N a)
-                inst (Left y)         = V (toU a, Left y)
+            let inst :: Either N (Poly (U b), a) -> Inf (U b) (Poly (U b), Either N a)
+                inst (Left y)         = V (Mono a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
             e'' <- synCheck ts' e' (Mono b)
