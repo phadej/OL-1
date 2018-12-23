@@ -9,10 +9,10 @@ import Data.Text          (Text)
 import Data.Void          (Void, absurd)
 import Debug.Trace        (trace)
 
-import qualified Control.Unification        as U
-import qualified Control.Unification.IntVar as U
 import qualified Data.Text                  as T
 import qualified Text.PrettyPrint.Compact   as PP
+
+import OL1.Unify
 
 type Doc = PP.Doc ()
 
@@ -71,17 +71,21 @@ instance Pretty Void where
 instance Pretty Text where
     ppr = PP.text . T.unpack
 
-instance Pretty b => Pretty1 (Var b) where
-    liftPpr pp (F x) = pp x
-    liftPpr _  (B y) = ppr y
-
-instance (Pretty b, Pretty a) => Pretty (Var a b) where ppr = ppr1
-
 instance Pretty b => Pretty1 (Either b) where
     liftPpr pp (Right x) = pp x
     liftPpr _  (Left y)  = ppr y
 
 instance (Pretty b, Pretty a) => Pretty (Either a b) where ppr = ppr1
+
+-------------------------------------------------------------------------------
+-- Bound
+-------------------------------------------------------------------------------
+
+instance Pretty b => Pretty1 (Var b) where
+    liftPpr pp (F x) = pp x
+    liftPpr _  (B y) = ppr y
+
+instance (Pretty b, Pretty a) => Pretty (Var a b) where ppr = ppr1
 
 instance (Pretty b, Pretty1 (t f), Pretty1 f) => Pretty1 (ScopeT b t f) where
     liftPpr pp (ScopeT s) = liftPpr (liftPpr (liftPpr pp)) s
@@ -92,12 +96,16 @@ instance (Pretty b, Pretty1 f, Pretty1 m) => Pretty1 (ScopeH b f m) where
 instance (Pretty n, Pretty1 f) => Pretty1 (Scope n f) where
     liftPpr pp (Scope s) = liftPpr (liftPpr pp) s
 
-instance Pretty U.IntVar where
-    ppr (U.IntVar n) = PP.char '?' PP.<> PP.int (n + minBound)
+-------------------------------------------------------------------------------
+-- OL1.Unify
+-------------------------------------------------------------------------------
 
-instance Pretty1 t => Pretty1 (U.UTerm t) where
+instance Pretty MetaVar where
+    ppr (MetaVar n) = PP.char '?' PP.<> PP.int (n + minBound)
+
+instance Pretty1 t => Pretty1 (UTerm t) where
     liftPpr pp = go where
-        go (U.UVar v)  = pp v
-        go (U.UTerm t) = liftPpr go t
+        go (UVar v)  = pp v
+        go (UTerm t) = liftPpr go t
 
-instance (Pretty1 t, Pretty a) => Pretty (U.UTerm t a) where ppr = ppr1
+instance (Pretty1 t, Pretty a) => Pretty (UTerm t a) where ppr = ppr1

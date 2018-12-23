@@ -5,10 +5,10 @@ import Control.Exception        (Exception)
 import Data.String              (IsString (..))
 import Text.PrettyPrint.Compact (($$), (<+>), (</>))
 
-import qualified Control.Unification      as U
 import qualified Text.PrettyPrint.Compact as PP
 
 import OL1.Pretty
+import OL1.Unify
 
 -- | Various errors occuring during type-checking of terms.
 data Err
@@ -31,6 +31,13 @@ data Err
     | OccursFailure Doc Doc
       -- ^ Occurs failure, i.e infinite type
     | MismatchFailure Doc Doc
+      -- ^ ...
+    | RigidMismatchFailure Doc Doc
+      -- ^ ...
+    | EscapingRigidFailure Doc
+      -- ^ Skolem or rigid meta-variable escaping the scope
+    | RigidBindFailure Doc Doc
+      -- ^ Skolem or rigid meta-variable escaping the scope
 
 instance Show Err where
     -- TODO: use renderWith
@@ -38,12 +45,19 @@ instance Show Err where
 
 instance Exception Err
 
-instance (Pretty1 t, Pretty v) => U.Fallible t v Err where
-    occursFailure v t = OccursFailure (ppr v) (ppr1 t)
-    mismatchFailure a b = MismatchFailure (ppr1 a) (ppr1 b)
-
 instance IsString Err where
     fromString = SomeErr
+
+instance (Variable v, Pretty1 t, Pretty v) => Fallible t v Err where
+    occursFailure v t   = OccursFailure (ppr v) (ppr1 t)
+    mismatchFailure a b = MismatchFailure (ppr1 a) (ppr1 b)
+
+instance (Pretty n) => RigidFallible n Err where
+    rigidMismatchFailure a b = RigidMismatchFailure (ppr a) (ppr b)
+    escapingRigidFailure a = EscapingRigidFailure (ppr a)
+
+instance (RigidVariable n v, Pretty n, Pretty1 t, Pretty v) => RigidFallibleAll n t v Err where
+    rigidBindFailure n t = RigidBindFailure (ppr n) (ppr1 t)
 
 instance Pretty Err where
     ppr (SomeErr err) = "error:" </> PP.string err
@@ -90,6 +104,15 @@ instance Pretty Err where
     ppr (MismatchFailure a b) =
         "error:" </>
         "Couldn't match expected type" <+> b <+> "with actual type" <+> a
+    ppr (EscapingRigidFailure a) =
+        "error:" </>
+        "Rigid variable" <+> a <+> "escaping its scope"
+    ppr (RigidMismatchFailure a b) =
+        "error:" </>
+        "Couldn't match rigid type" <+> b <+> "with actual rigid type" <+> a
+    ppr (RigidBindFailure a b) =
+        "error:" </>
+        "Couldn't match type" <+> b <+> "with actual rigid type" <+> a
 
 ppCheckedTerms :: [Doc] -> Doc -> Doc
 ppCheckedTerms [] doc = doc

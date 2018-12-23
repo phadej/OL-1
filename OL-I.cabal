@@ -1,42 +1,37 @@
-cabal-version: 2.2
-name: OL-I
-version: 1
-
-synopsis: Oleg's Language I
-category: Language
+cabal-version:      2.2
+name:               OL-I
+version:            1
+synopsis:           Oleg's Language I
+category:           Language
 description:
   Predicative System-F based language.
   Uses LISP-y syntax.
 
-author:     Oleg Grenrus <oleg.grenrus@iki.fi>
-maintainer: Oleg Grenrus <oleg.grenrus@iki.fi>
-
-license: GPL-2.0-only OR GPL-3.0-only
-
-extra-source-files:
-  golden/*.txt
-
-tested-with:
-  GHC == 8.2.2
-   || == 8.4.3
+author:             Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
+license:            (GPL-2.0-only OR GPL-3.0-only)
+extra-source-files: golden/*.txt
+tested-with:        ghc ==8.2.2 || ==8.4.4
 
 source-repository head
   type:     git
   location: https://github.com/phadej/OL-1.git
 
 library
-  default-language: Haskell2010
-  ghc-options:      -Wall
-  hs-source-dirs:   src
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     src
   default-extensions:
     DataKinds
     DefaultSignatures
     DeriveFoldable
     DeriveFunctor
     DeriveTraversable
+    DerivingStrategies
     FlexibleInstances
     FunctionalDependencies
     GADTs
+    GeneralizedNewtypeDeriving
     InstanceSigs
     KindSignatures
     RankNTypes
@@ -44,25 +39,25 @@ library
     TypeOperators
 
   build-depends:
-    , base  ^>=4.10.1.0 || ^>=4.11.1.0
+    , base            ^>=4.10.1.0 || ^>=4.11.1.0
     , binary
     , bound
     , bound-extras
     , containers
     , deepseq
     , hashable
-    , logict
+    , lens
     , mtl
     , parsers
     , pretty-compact
     , text
     , transformers
     , trifecta
-    , unification-fd
 
   exposed-modules:
     OL1
     OL1.Check
+    OL1.Error
     OL1.Eval
     OL1.Expr
     OL1.Name
@@ -70,15 +65,15 @@ library
     OL1.Smart
     OL1.Synth
     OL1.Type
+    OL1.Unify
     OL1.Value
-    OL1.Error
 
 test-suite golden
-  type:             exitcode-stdio-1.0
-  default-language: Haskell2010
-  ghc-options:      -Wall
-  hs-source-dirs:   test
-  main-is:          Golden.hs
+  type:               exitcode-stdio-1.0
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     test
+  main-is:            Golden.hs
   build-depends:
     , base
     , containers
@@ -88,5 +83,5 @@ test-suite golden
     , tasty
     , tasty-golden
     , utf8-string
-  default-extensions:
-    OverloadedStrings
+
+  default-extensions: OverloadedStrings

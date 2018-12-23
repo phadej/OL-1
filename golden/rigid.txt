@@ -1,4 +1,3 @@
 (the (poly x f) (forall a (-> a a)))
 []
-(2-tuple (the (poly x f) (forall a (-> a a)))
-         [(not-in-scope f (-> (skolem x ?1) (skolem x ?1)))])
+error: Rigid variable a escaping its scope

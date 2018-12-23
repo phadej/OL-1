@@ -13,9 +13,11 @@ columns: 80
 language_extensions:
   - DataKinds
   - DefaultSignatures
+  - DerivingStrategies
   - ExplicitForAll
   - FlexibleContexts
   - GADTs
+  - GeneralizedNewtypeDeriving
   - InstanceSigs
   - MultiParamTypeClasses
   - RankNTypes
