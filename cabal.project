@@ -1,6 +1,6 @@
 packages:
-  ol1/
-  ol1-pretty/
+  OL-I
+  OL-I-syntax
   unification-rigid/
 
 with-compiler: ghc-8.4.4
@@ -9,7 +9,7 @@ tests: true
 package OL-I
   ghc-options: -Wall -Werror
 
-package OL-I-pretty
+package OL-I-syntax
   ghc-options: -Wall -Werror
 
 package unification-rigid

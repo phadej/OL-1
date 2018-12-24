@@ -1,5 +1,5 @@
 cabal-version:      2.2
-name:               OL-I-pretty
+name:               OL-I-syntax
 version:            1
 synopsis:           Oleg's Language I: Pretty class
 category:           Language
@@ -22,21 +22,47 @@ library
   ghc-options:        -Wall
   hs-source-dirs:     src
   default-extensions:
-    FlexibleContexts
     DerivingStrategies
-    GeneralizedNewtypeDeriving
-    GADTs
+    FlexibleContexts
     FlexibleInstances
+    GADTs
+    GeneralizedNewtypeDeriving
 
   build-depends:
-    , base            ^>=4.10.1.0 || ^>=4.11.1.0
+    , base               ^>=4.10.1.0 || ^>=4.11.1.0
     , bound
     , bound-extras
+    , bytestring
     , containers
-    , pretty-compact
     , mtl
+    , parsers
+    , pretty-compact
+    , QuickCheck
     , text
+    , text-short
+    , trifecta
     , unification-rigid
+    , integer-logarithms
+    , utf8-string
 
   exposed-modules:
     OL1.Pretty
+    OL1.Syntax
+    OL1.Syntax.Parser
+    OL1.Syntax.Pretty
+    OL1.Syntax.Sym
+    OL1.Syntax.Type
+
+test-suite syntax-unittests
+  type:               exitcode-stdio-1.0
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     test
+  main-is:            UnitTests.hs
+  default-extensions: OverloadedStrings
+  build-depends:
+    , base
+    , OL-I-syntax
+    , tasty
+    , tasty-quickcheck
+    , QuickCheck

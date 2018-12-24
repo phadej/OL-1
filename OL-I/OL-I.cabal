@@ -49,7 +49,7 @@ library
     , hashable
     , lens
     , mtl
-    , OL-I-pretty
+    , OL-I-syntax
     , parsers
     , pretty-compact
     , recursion-schemes
