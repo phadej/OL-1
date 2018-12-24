@@ -13,8 +13,6 @@ import Data.Coerce          (coerce)
 import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.String          (IsString (..))
 
-import qualified Text.PrettyPrint.Compact as PP
-
 import OL1.Error
 import OL1.Name
 import OL1.Pretty
@@ -193,19 +191,26 @@ instance (Eq a, Eq b) => Eq (Elim b a) where (==) = eq1
 -------------------------------------------------------------------------------
 
 instance Pretty b => Pretty1 (Intro b) where
-    liftPpr pp = go where
-        go (VErr err)      = ppr err
-        go (VLam n b)      = sexpr (PP.text "fn") [ ppr n, liftPpr pp b ]
-        go (VLamTy n b)    = sexpr (PP.text "poly") [ ppr n , liftPpr pp $ unIntro' $ unscopeH b]
-        go (VCoerce x)     = liftPpr pp x
+    liftPpr pp i = bitraverse ppr pp i >>= pprIntro
 
 instance Pretty b => Pretty1 (Elim b) where
-    liftPpr pp (VVar a)     = pp a
-    liftPpr pp (VApp f x)   = sexpr (liftPpr pp f) [liftPpr pp x]
-    liftPpr pp (VAppTy x t) = sexpr (liftPpr pp x) [PP.char '@' PP.<> ppr t ]
+    liftPpr pp x = bitraverse ppr pp x >>= pprElim
 
 instance (Pretty a, Pretty b) => Pretty (Intro b a) where ppr = ppr1
 instance (Pretty a, Pretty b) => Pretty (Elim b a)  where ppr = ppr1
+
+pprIntro :: Intro Doc Doc -> MDoc
+pprIntro (VErr err)      = ppr err
+pprIntro (VLam n b)      = pprScopedC n $ \n' ->
+    sexpr (pprText "fn") [ return n', pprIntro $ instantiate1 (return n') b ]
+pprIntro (VLamTy n b)    = pprScopedC n $ \n' ->
+    sexpr (pprText "poly") [ return n', pprIntro $ unIntro' $ instantiate1H (return n') b ]
+pprIntro (VCoerce x)     = pprElim x
+
+pprElim :: Elim Doc Doc -> MDoc
+pprElim (VVar a)     = ppr a
+pprElim (VApp f x)   = sexpr (pprElim f) [pprIntro x]
+pprElim (VAppTy x t) = sexpr (pprElim x) [pprChar '@' <> pprMono t]
 
 -------------------------------------------------------------------------------
 -- Smart

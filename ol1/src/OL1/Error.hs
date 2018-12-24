@@ -6,7 +6,6 @@ import Control.Unification.Rigid
        (Fallible (..), RigidFallible (..), RigidFallibleAll (..),
        RigidVariable, Variable)
 import Data.String               (IsString (..))
-import Text.PrettyPrint.Compact  (($$), (<+>), (</>))
 
 import qualified Text.PrettyPrint.Compact as PP
 
@@ -16,34 +15,34 @@ import OL1.Pretty
 data Err
     = SomeErr String
       -- ^ /untyped/ error. Avoid.
-    | VariableNotInScope Doc [Doc]
+    | VariableNotInScope MDoc [MDoc]
       -- ^ variable not in the context provided
-    | TypeMismatch Doc Doc Doc [Doc]
+    | TypeMismatch MDoc MDoc MDoc [MDoc]
       -- ^ type mismatch in function application
-    | LambdaNotArrow Doc Doc [Doc]
+    | LambdaNotArrow MDoc MDoc [MDoc]
       -- ^ Lambda is (annotated with) not an arrow type
-    | PolyNotForall Doc Doc [Doc]
+    | PolyNotForall MDoc MDoc [MDoc]
       -- ^ type abstraction is (annotated with) not a polymorphic type
-    | NotAFunction Doc Doc Doc [Doc]
+    | NotAFunction MDoc MDoc MDoc [MDoc]
       -- ^ apply warning in 'Term' type-checker.
-    | NotAPolyFunction Doc Doc Doc [Doc]
+    | NotAPolyFunction MDoc MDoc MDoc [MDoc]
       -- ^ type apply warning in 'Term' type-checker.
-    | ApplyPanic Doc
+    | ApplyPanic MDoc
       -- ^ apply panic in 'Value' evaluator
-    | OccursFailure Doc Doc
+    | OccursFailure MDoc MDoc
       -- ^ Occurs failure, i.e infinite type
-    | MismatchFailure Doc Doc
+    | MismatchFailure MDoc MDoc
       -- ^ ...
-    | RigidMismatchFailure Doc Doc
+    | RigidMismatchFailure MDoc MDoc
       -- ^ ...
-    | EscapingRigidFailure Doc
+    | EscapingRigidFailure MDoc
       -- ^ Skolem or rigid meta-variable escaping the scope
-    | RigidBindFailure Doc Doc
+    | RigidBindFailure MDoc MDoc
       -- ^ Skolem or rigid meta-variable escaping the scope
 
 instance Show Err where
     -- TODO: use renderWith
-    showsPrec _ e = showString $ PP.render (ppr e)
+    showsPrec _ e = showString $ pretty (ppr e)
 
 instance Exception Err
 
@@ -62,41 +61,41 @@ instance (RigidVariable n v, Pretty n, Pretty1 t, Pretty v) => RigidFallibleAll 
     rigidBindFailure n t = RigidBindFailure (ppr n) (ppr1 t)
 
 instance Pretty Err where
-    ppr (SomeErr err) = "error:" </> PP.string err
+    ppr (SomeErr err) = "error:" </> pprText err
     ppr (VariableNotInScope x ctx) = ppCheckedTerms ctx $
         "error:" </> err
       where
         err = "Variable not in scope" <+> x
     ppr (TypeMismatch expt act term ctx) = ppCheckedTerms ctx $
-        "error:" </> types $$ term'
+        "error:" </> types $$$ term'
       where
         types = "Couldn't match expected type" <+> expt <+> "with actual type" <+> act
         term' = "In the expression:" <+> term
     ppr (LambdaNotArrow t term ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$ ann
+        "error:" </> err $$$ ann
       where
         err = "The lambda expression" <+> term <+> "doesn't have an arrow type"
         ann = "Annotated with" <+> t
     ppr (PolyNotForall t term ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$ ann
+        "error:" </> err $$$ ann
       where
         err = "The type abstraction" <+> term <+> "doesn't have a polymorphic type"
         ann = "Annotated with" <+> t
     ppr (NotAFunction t f x ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$ f' $$ x'
+        "error:" </> err $$$ f' $$$ x'
       where
         err = "Couldn't match actual type" <+> t <+> "with a function type"
         f' = "In the application of" <+> f
         x' = "to the value" <+> x
     ppr (NotAPolyFunction t f x ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$ f' $$ x'
+        "error:" </> err $$$ f' $$$ x'
       where
         err = "Couldn't match actual type" <+> t <+> "with a type abstraction"
         f' = "In the type application of" <+> f
         x' = "to the type" <+> x
 
     ppr (ApplyPanic f) =
-        PP.text "panic:" </> err
+        "panic:" </> err
       where
         err = "Trying to apply not-a-lambda" <+> f
 
@@ -116,8 +115,8 @@ instance Pretty Err where
         "error:" </>
         "Couldn't match type" <+> b <+> "with actual rigid type" <+> a
 
-ppCheckedTerms :: [Doc] -> Doc -> Doc
+ppCheckedTerms :: [MDoc] -> MDoc -> MDoc
 ppCheckedTerms [] doc = doc
 ppCheckedTerms ts doc = doc
-    $$ "when checking expressions"
-    $$ PP.vcat ts
+    $$$ "when checking expressions"
+    $$$ (PP.vcat <$> sequenceA ts)

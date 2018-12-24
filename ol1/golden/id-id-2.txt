@@ -1,7 +1,7 @@
-((the (poly a (fn x x)) (forall a (-> a a))) id)
-[(2-tuple id (forall a (-> a a)))]
-(3-tuple (the (poly ? ((the (poly a (fn x x)) (forall a (-> a a)))
-                         @(-> ? ?) (id @?)))
-              (forall ? (-> ? ?)))
-         (forall ? (-> ? ?))
-         [])
+((the (forall a (-> a a)) (poly a (fn x x))) id)
+[(pair id (forall a (-> a a)))]
+(triple (the (forall ? (-> ? ?))
+             (poly ? ((the (forall a (-> a a)) (poly a (fn x x)))
+                        @(-> ? ?) (id @?))))
+        (forall ? (-> ? ?))
+        [])

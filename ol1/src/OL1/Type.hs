@@ -1,6 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
 module OL1.Type where
 
-import Bound.ScopeH              (ScopeH, abstractH)
+import Bound.ScopeH              (ScopeH, abstractH, instantiate1H)
 import Control.Monad             (ap)
 import Control.Monad.Module      (Module (..))
 import Control.Unification.Rigid (Unifiable (..))
@@ -8,8 +9,6 @@ import Data.Functor.Classes      (Eq1 (..), eq1)
 import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
 import Data.String               (IsString (..))
 import Data.Text                 (Text)
-
-import qualified Text.PrettyPrint.Compact as PP
 
 import OL1.Name
 import OL1.Pretty
@@ -92,24 +91,27 @@ instance Eq a => Unifiable (MonoF a) where
 
 instance Pretty a => Pretty1 (MonoF a) where
     liftPpr _  (TF a)       = ppr a
-    liftPpr pp (a :=> b)    = sexpr (PP.text "->") [pp a, pp b]
-
-
-
+    liftPpr pp (a :=> b)    = sexpr "->" [pp a, pp b]
 
 -------------------------------------------------------------------------------
 -- Pretty
 -------------------------------------------------------------------------------
 
 instance Pretty1 Mono where
-    liftPpr pp = go where
-        go x = case peelArrow x of
-            ([], x') -> pp x'
-            (xs, x') -> sexpr (PP.text "->") (map go xs ++ [pp x'])
+    liftPpr pp x = traverse pp x >>= pprMono
 
 instance Pretty1 Poly where
-    liftPpr pp (Mono t)     = liftPpr pp t
-    liftPpr pp (Forall n t) = sexpr (PP.text "forall") [ ppr n, liftPpr pp t ]
+    liftPpr pp t = traverse pp t >>= pprPoly
+
+pprMono :: Mono Doc -> MDoc
+pprMono x = case peelArrow x of
+    ([], x') -> return x'
+    (xs, x') -> sexpr "->" (map pprMono xs ++ [return x'])
+
+pprPoly :: Poly Doc -> MDoc
+pprPoly (Mono d)     = liftPpr return d
+pprPoly (Forall n t) = pprScopedC n $ \n' ->
+    sexpr "forall" [ return n', pprPoly $ instantiate1H (return n') t ]
 
 instance Pretty a => Pretty (Mono a) where ppr = ppr1
 instance Pretty a => Pretty (Poly a) where ppr = ppr1

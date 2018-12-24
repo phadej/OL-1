@@ -33,7 +33,7 @@ check = rcheck []
 
 rinfer
     :: (Eq b, Pretty a, Pretty b)
-    => [Doc]
+    => [MDoc]
     -> (a -> Maybe (Poly b))
     -> Inf b a
     -> Either Err (Poly b)
@@ -61,7 +61,7 @@ rinfer ts ctx term = case term of
 
 rcheck
     :: (Eq b, Pretty a, Pretty b)
-    => [Doc] -- ^ terms we walked through, for error reporting
+    => [MDoc] -- ^ terms we walked through, for error reporting
     -> (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b

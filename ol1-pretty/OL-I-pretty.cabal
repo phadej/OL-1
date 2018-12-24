@@ -1,0 +1,42 @@
+cabal-version:      2.2
+name:               OL-I-pretty
+version:            1
+synopsis:           Oleg's Language I: Pretty class
+category:           Language
+description:
+  Predicative System-F based language.
+  Uses LISP-y syntax.
+
+author:             Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
+license:            (GPL-2.0-only OR GPL-3.0-only)
+extra-source-files: golden/*.txt
+tested-with:        ghc ==8.2.2 || ==8.4.4
+
+source-repository head
+  type:     git
+  location: https://github.com/phadej/OL-1.git
+
+library
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     src
+  default-extensions:
+    FlexibleContexts
+    DerivingStrategies
+    GeneralizedNewtypeDeriving
+    GADTs
+    FlexibleInstances
+
+  build-depends:
+    , base            ^>=4.10.1.0 || ^>=4.11.1.0
+    , bound
+    , bound-extras
+    , containers
+    , pretty-compact
+    , mtl
+    , text
+    , unification-rigid
+
+  exposed-modules:
+    OL1.Pretty

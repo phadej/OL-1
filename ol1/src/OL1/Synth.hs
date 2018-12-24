@@ -23,9 +23,8 @@ import OL1.Name
 import OL1.Pretty
 import OL1.Type
 
-import qualified Data.IntSet              as IS
-import qualified Data.Map.Strict          as Map
-import qualified Text.PrettyPrint.Compact as PP
+import qualified Data.IntSet     as IS
+import qualified Data.Map.Strict as Map
 
 -------------------------------------------------------------------------------
 -- Type aliases
@@ -88,10 +87,10 @@ synth ctx
 -- Warning
 -------------------------------------------------------------------------------
 
-data Warning a = NotInScope a Doc
+data Warning a = NotInScope a MDoc
 
 instance Pretty a => Pretty (Warning a) where
-    ppr (NotInScope a d) = sexpr (PP.text "not-in-scope") [ppr a, d]
+    ppr (NotInScope a d) = sexpr (pprText "not-in-scope") [ppr a, d]
 
 -------------------------------------------------------------------------------
 -- Generalise
@@ -102,7 +101,7 @@ flattenMono (UVar v)             = T (Left v)
 flattenMono (UTerm (TF x))       = T (Right x)
 flattenMono (UTerm (a :=> b))    = flattenMono a :-> flattenMono b
 
-flattenMonoDoc :: Pretty b => U b v -> Mono (Either v Doc)
+flattenMonoDoc :: Pretty b => U b v -> Mono (Either v MDoc)
 flattenMonoDoc (UVar v)             = T (Left v)
 flattenMonoDoc (UTerm (TF x))       = T (Right (ppr x))
 flattenMonoDoc (UTerm (a :=> b))    = flattenMonoDoc a :-> flattenMonoDoc b
@@ -159,7 +158,7 @@ wrap = Mono . T
 
 synInfer
     :: (RigidVariable N v, Eq b, Pretty a, Pretty b, Pretty v)
-    => [Doc]
+    => [MDoc]
     -> Inf (U b v) (Poly (U b v), a)  -- ^ terms with meta leaves
     -> Unify' b v (Inf (U b v) a, Poly (U b v))
 synInfer ts term = case term of
@@ -176,12 +175,12 @@ synInfer ts term = case term of
             Forall _ b -> pure (AppTy x' t, instantiate1H t b)
             _          -> throwError $ NotAPolyFunction (ppr xt) (ppr' x) (ppr t) ts'
   where
-    pprTerm = ppr (fmap (uncurry $ \t x -> sexpr (PP.text "the") [ ppr t , ppr x]) term)
+    pprTerm = ppr (fmap (uncurry $ \t x -> sexpr (pprText "the") [ ppr t , ppr x]) term)
     ts'     = pprTerm : ts
 
 sysInferApp
     :: (Eq b, Pretty a, Pretty b, Pretty v, RigidVariable N v)
-    => [Doc]
+    => [MDoc]
     -> Inf (U b v) a
     -> Poly (U b v)
     -> Chk (U b v) (Poly (U b v ), a)
@@ -245,11 +244,11 @@ unifyPoly u (Forall _ b) t@Mono {} = do
     unifyPoly (AppTy u a) (instantiate1H a b) t
 
 unifyPoly _ a@Mono {} b@Forall {} = throwError $ TypeMismatch
-    (ppr a) (ppr b) (PP.text "?") []
+    (ppr a) (ppr b) (pprText "?") []
 
 synCheck
     :: forall a b v. (Eq b, Pretty a, Pretty b, RigidVariable N v, Pretty v)
-    => [Doc]
+    => [MDoc]
     -> Chk (U b v) (Poly (U b v), a)
     -> Poly (U b v)
     -> Unify' b v (Chk (U b v) a, Poly (U b v))
@@ -307,5 +306,5 @@ uncomm (Left (Right v)) = F (UVar v)
 -- Helpers
 -------------------------------------------------------------------------------
 
-ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> Doc
+ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> MDoc
 ppr' x = ppr (snd <$> x)

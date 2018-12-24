@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main (main) where
 
-import OL1
+import OL1 hiding ((</>))
 
 import Data.Bifunctor    (first)
 import System.FilePath   ((-<.>), (</>))
@@ -10,7 +10,6 @@ import Test.Tasty.Golden (goldenVsString)
 
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import qualified Data.Map.Strict           as Map
-import qualified Text.PrettyPrint.Compact  as PP
 
 idType_ :: Poly Text
 idType_ = forall_ "a" $ "a" :-> "a"
@@ -88,11 +87,11 @@ infixr 0 ~>
 golden :: String -> Case -> TestTree
 golden name Case {..} = goldenVsString name ("golden" </> name -<.> "txt")
     $ return $ UTF8.fromString
-    $ PP.render
+    $ pretty
     $ ppr term
-    PP.$$ ppr ctx
-    PP.$$ ppr resPpr
-    PP.$$ mempty
+    $$$ ppr ctx
+    $$$ ppr resPpr
+    $$$ mempty
   where
     res     = synth ctx'' term
     ctx'    = Map.fromList ctx

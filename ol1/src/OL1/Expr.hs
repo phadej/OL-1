@@ -12,8 +12,6 @@ import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.Kind            (Type)
 import Data.String          (IsString (..))
 
-import qualified Text.PrettyPrint.Compact as PP
-
 import OL1.Name
 import OL1.Pretty
 import OL1.Smart
@@ -189,28 +187,35 @@ instance (Eq b, Eq a) => Eq (Chk b a) where (==) = eq1
 -------------------------------------------------------------------------------
 
 instance Pretty b => Pretty1 (Inf b) where
-    liftPpr pp = go where
-        go (V x)       = pp x
-        go (App f x)   = case peelApp f of
-            (f', xs) -> sexpr (go f')
-                [ either (\u -> PP.char '@' PP.<> ppr u) (liftPpr pp) e
-                | e <- xs ++ [Right x]
-                ]
-        go (AppTy x t) = case peelApp x of
-            (f', xs) -> sexpr (go f')
-                [ either (\u -> PP.char '@' PP.<> ppr u) (liftPpr pp) e
-                | e <- xs ++ [Left t]
-                ]
-        go (Ann e b)   = sexpr (PP.text "the") [liftPpr pp e, ppr b]
+    liftPpr pp x = bitraverse ppr pp x >>= pprInf
 
 instance Pretty b => Pretty1 (Chk b) where
-    liftPpr pp (Inf i)    = liftPpr pp i
-    liftPpr pp (Lam n b)   = sexpr (PP.text "fn")   [ ppr n, liftPpr pp b ]
-    liftPpr pp (LamTy n (ScopeH (Chk' b))) =
-        sexpr (PP.text "poly") [ ppr n, liftPpr pp b ]
+    liftPpr pp x = bitraverse ppr pp x >>= pprChk
 
 instance (Pretty b, Pretty a) => Pretty (Chk b a) where ppr = ppr1
 instance (Pretty b, Pretty a) => Pretty (Inf b a) where ppr = ppr1
+
+pprInf :: Inf Doc Doc -> MDoc
+pprInf (V x) = return x
+pprInf (App f x) = case peelApp f of
+    (f', xs) -> sexpr (pprInf f')
+        [ either (\u -> pprChar '@' <> pprMono u) pprChk e
+        | e <- xs ++ [Right x]
+        ]
+pprInf (AppTy x t) = case peelApp x of
+    (f', xs) -> sexpr (pprInf f')
+        [ either (\u -> pprChar '@' <> pprMono u) pprChk e
+        | e <- xs ++ [Left t]
+        ]
+pprInf (Ann e b)   = sexpr (pprText "the") [pprPoly b, pprChk e]
+
+pprChk :: Chk Doc Doc -> MDoc
+pprChk (Inf i)     = pprInf i
+pprChk (Lam n b)   = pprScopedC n $ \n' ->
+    sexpr (pprText "fn") [ return n', pprChk $ instantiate1H (return n') b ]
+pprChk (LamTy n b) = pprScopedC n $ \n' ->
+    sexpr (pprText "poly") [ return n', pprChk $ unChk' $ instantiate1H (return n') b ]
+
 
 -------------------------------------------------------------------------------
 -- Smart

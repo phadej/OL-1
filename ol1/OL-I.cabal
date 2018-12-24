@@ -40,7 +40,7 @@ library
     TypeOperators
 
   build-depends:
-    , base            ^>=4.10.1.0 || ^>=4.11.1.0
+    , base               ^>=4.10.1.0 || ^>=4.11.1.0
     , binary
     , bound
     , bound-extras
@@ -49,13 +49,14 @@ library
     , hashable
     , lens
     , mtl
+    , OL-I-pretty
     , parsers
-    , recursion-schemes
     , pretty-compact
+    , recursion-schemes
     , text
     , transformers
-    , unification-rigid
     , trifecta
+    , unification-rigid
 
   exposed-modules:
     OL1
@@ -64,7 +65,6 @@ library
     OL1.Eval
     OL1.Expr
     OL1.Name
-    OL1.Pretty
     OL1.Smart
     OL1.Synth
     OL1.Type
