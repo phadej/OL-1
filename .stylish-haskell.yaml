@@ -21,3 +21,4 @@ language_extensions:
   - InstanceSigs
   - MultiParamTypeClasses
   - RankNTypes
+  - TypeFamilies

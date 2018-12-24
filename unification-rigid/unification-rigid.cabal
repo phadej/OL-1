@@ -1,0 +1,40 @@
+cabal-version: 2.2
+name:          unification-rigid
+version:       1
+synopsis:      Unification with rigid variables
+category:      Language, Unification
+description:
+  Unification like in @unification-fd@, but also supporting with rigid variables.
+
+author:        Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
+license:       BSD-3-Clause
+tested-with:   ghc ==8.2.2 || ==8.4.4 || ==8.6.3
+
+source-repository head
+  type:     git
+  location: https://github.com/phadej/OL-1.git
+
+library
+  default-language:   Haskell2010
+  default-extensions:
+    DeriveFoldable
+    DeriveFunctor
+    DeriveTraversable
+    DerivingStrategies
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    ScopedTypeVariables
+    TypeFamilies
+
+  ghc-options:        -Wall
+  hs-source-dirs:     src
+  build-depends:
+    , base               ^>=4.10.1.0 || ^>=4.11.1.0
+    , containers         ^>=0.5.7.1 || ^>=0.6.0.1
+    , mtl                ^>=2.2.2
+    , recursion-schemes  ^>=5.1
+    , transformers       ^>=0.5.2.0
+
+  exposed-modules:    Control.Unification.Rigid

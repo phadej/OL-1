@@ -1,3 +1,12 @@
-packages: .
+packages:
+  ol1/
+  unification-rigid/
+
+with-compiler: ghc-8.4.4
+tests: true
+
 package OL-I
-  ghc-options: -Werror
+  ghc-options: -Wall -Werror
+
+package unification-rigid
+  ghc-options: -Wall -Werror

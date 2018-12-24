@@ -1,28 +1,31 @@
-{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
 module OL1.Synth where
 
 import Bound.ScopeH
-import Bound.Var (Var (..))
+import Bound.Var                 (Var (..))
 import Control.Monad.Error.Class (MonadError (..))
 import Control.Monad.Module      (Module (..))
 import Control.Monad.State
 import Control.Monad.Trans.Class (lift)
+import Control.Unification.Rigid
+       (MetaVar (..), RigidVariable, UTerm (..), Unify, applyBindings,
+       applyBindingsAll, freeVar, runUnify, unify, withRigid)
 import Data.Bifoldable           (bifoldMap)
 import Data.Bifunctor            (Bifunctor (..))
 import Data.Bitraversable        (bitraverse)
 import Data.Functor.Product      (Product (..))
-import Data.Traversable          (for, fmapDefault, foldMapDefault)
+import Data.Traversable          (for)
 
 import OL1.Error
 import OL1.Expr
 import OL1.Name
 import OL1.Pretty
 import OL1.Type
-import OL1.Unify
 
-import qualified Data.IntSet                as IS
-import qualified Data.Map.Strict            as Map
-import qualified Text.PrettyPrint.Compact   as PP
+import qualified Data.IntSet              as IS
+import qualified Data.Map.Strict          as Map
+import qualified Text.PrettyPrint.Compact as PP
 
 -------------------------------------------------------------------------------
 -- Type aliases
@@ -32,27 +35,8 @@ type Unify' b v = Unify N Err (MonoF b) v
 type U b v = UTerm (MonoF b) v
 
 -------------------------------------------------------------------------------
--- Unifiable mono types
+-- Conversions
 -------------------------------------------------------------------------------
-
-data MonoF a b
-    = TF a
-    | b :=> b
-  deriving (Functor, Foldable, Traversable)
-
-instance Eq a => Unifiable (MonoF a) where
-    zipMatch (TF a)       (TF b)
-        | a == b    = Just (TF a)
-        | otherwise = Nothing
-    zipMatch (a :=> b)    (c :=> d) = Just (Right (a, c) :=> Right (b, d))
-
-    zipMatch TF     {} _ = Nothing
-    zipMatch (:=>)  {} _ = Nothing
-
-instance Pretty a => Pretty1 (MonoF a) where
-    liftPpr _  (TF a)       = ppr a
-    liftPpr pp (a :=> b)    = sexpr (PP.text "->") [pp a, pp b]
-
 
 toU :: Mono (U b v) -> U b v
 toU (T a)     = a
@@ -222,15 +206,7 @@ sysInferApp ts' f ab x = case ab of
 -- Checking
 -------------------------------------------------------------------------------
 
--- TODO: use Pair
-data InfPoly a u = InfPoly (Inf u a) (Poly u)
-
-instance Functor (InfPoly a) where fmap = fmapDefault
-instance Foldable (InfPoly a) where foldMap = foldMapDefault
-instance Traversable (InfPoly a) where
-    traverse f (InfPoly i p) = InfPoly
-        <$> bitraverse f pure i
-        <*> traverse f p
+type InfPoly a u = Product (Inf' a) Poly u
 
 unifyPoly
     :: forall b a v. (RigidVariable N v, Eq b, Pretty b, Pretty v)
@@ -240,7 +216,7 @@ unifyPoly
     -> Unify' b v (InfPoly a (U b v))
 unifyPoly u (Mono a)     (Mono b)      = do
     ab <- unify (toU a) (toU b)
-    return $ InfPoly u (Mono (T ab))
+    return $ Pair (Inf' u) (Mono (T ab))
 unifyPoly (Ann (LamTy n u) (Forall m c)) (Forall _ a) (Forall _ b) = withRigid $ do
     -- make a skolem from new variable
     let sko = T (UVar (Left n))
@@ -249,7 +225,7 @@ unifyPoly (Ann (LamTy n u) (Forall m c)) (Forall _ a) (Forall _ b) = withRigid $
     let c' = instantiate1H sko (fmap (fmap Right) c)
     let u' = instantiate1H sko (fmap (fmap Right) u)
     ip <- unifyPoly (Ann (unChk' u') c') a' b'
-    InfPoly u0 ab <- applyBindingsAll ip
+    Pair (Inf' u0) ab <- applyBindingsAll ip
 
     let u1 = flattenInf u0
     let ab1 = flattenPoly ab
@@ -259,7 +235,7 @@ unifyPoly (Ann (LamTy n u) (Forall m c)) (Forall _ a) (Forall _ b) = withRigid $
 
     let ab3 = Forall m ab2
 
-    return $ InfPoly (Ann (LamTy n u2) ab3) ab3
+    return $ Pair (Inf' (Ann (LamTy n u2) ab3)) ab3
 unifyPoly _ (Forall _ _) (Forall _ _) = throwError $ SomeErr "not a poly"
 
 -- If we need a monomorphic value, but it's known to be polymorphic:
@@ -280,7 +256,7 @@ synCheck
 synCheck ts term ty = case term of
     Inf u -> do
         (u', t) <- synInfer ts' u
-        InfPoly u'' ty' <- unifyPoly u' t ty
+        Pair (Inf' u'') ty' <- unifyPoly u' t ty
         pure (Inf u'', ty')
     Lam n e  -> case ty of
         Mono (T ab) -> do

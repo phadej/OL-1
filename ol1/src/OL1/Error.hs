@@ -1,14 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OL1.Error where
 
-import Control.Exception        (Exception)
-import Data.String              (IsString (..))
-import Text.PrettyPrint.Compact (($$), (<+>), (</>))
+import Control.Exception         (Exception)
+import Control.Unification.Rigid
+       (Fallible (..), RigidFallible (..), RigidFallibleAll (..),
+       RigidVariable, Variable)
+import Data.String               (IsString (..))
+import Text.PrettyPrint.Compact  (($$), (<+>), (</>))
 
 import qualified Text.PrettyPrint.Compact as PP
 
 import OL1.Pretty
-import OL1.Unify
 
 -- | Various errors occuring during type-checking of terms.
 data Err

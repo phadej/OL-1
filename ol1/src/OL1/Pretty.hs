@@ -1,18 +1,18 @@
 -- | TODO: Add context for renaming?
 module OL1.Pretty where
 
-import Bound.Scope.Simple (Scope (..))
-import Bound.ScopeH       (ScopeH (..))
-import Bound.ScopeT       (ScopeT (..))
-import Bound.Var          (Var (..))
-import Data.Text          (Text)
-import Data.Void          (Void, absurd)
-import Debug.Trace        (trace)
+import Bound.Scope.Simple        (Scope (..))
+import Bound.ScopeH              (ScopeH (..))
+import Bound.ScopeT              (ScopeT (..))
+import Bound.Var                 (Var (..))
+import Control.Unification.Rigid (MetaVar (..), UTerm (..))
+import Data.Text                 (Text)
+import Data.Void                 (Void, absurd)
+import Debug.Trace               (trace)
 
-import qualified Data.Text                  as T
-import qualified Text.PrettyPrint.Compact   as PP
+import qualified Data.Text                as T
+import qualified Text.PrettyPrint.Compact as PP
 
-import OL1.Unify
 
 type Doc = PP.Doc ()
 

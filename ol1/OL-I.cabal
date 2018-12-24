@@ -36,6 +36,7 @@ library
     KindSignatures
     RankNTypes
     ScopedTypeVariables
+    TypeFamilies
     TypeOperators
 
   build-depends:
@@ -49,9 +50,11 @@ library
     , lens
     , mtl
     , parsers
+    , recursion-schemes
     , pretty-compact
     , text
     , transformers
+    , unification-rigid
     , trifecta
 
   exposed-modules:
@@ -65,7 +68,6 @@ library
     OL1.Smart
     OL1.Synth
     OL1.Type
-    OL1.Unify
     OL1.Value
 
 test-suite golden

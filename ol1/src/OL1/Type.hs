@@ -1,11 +1,13 @@
 module OL1.Type where
 
-import Bound.ScopeH         (ScopeH, abstractH)
-import Control.Monad        (ap)
-import Control.Monad.Module (Module (..))
-import Data.Functor.Classes (Eq1 (..), eq1)
-import Data.String          (IsString (..))
-import Data.Text            (Text)
+import Bound.ScopeH              (ScopeH, abstractH)
+import Control.Monad             (ap)
+import Control.Monad.Module      (Module (..))
+import Control.Unification.Rigid (Unifiable (..))
+import Data.Functor.Classes      (Eq1 (..), eq1)
+import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
+import Data.String               (IsString (..))
+import Data.Text                 (Text)
 
 import qualified Text.PrettyPrint.Compact as PP
 
@@ -59,6 +61,41 @@ instance Eq1 Poly where
 
 instance Eq a => Eq (Mono a) where (==) = eq1
 instance Eq a => Eq (Poly a) where (==) = eq1
+
+-------------------------------------------------------------------------------
+-- MonoF
+-------------------------------------------------------------------------------
+
+data MonoF a b
+    = TF a
+    | b :=> b
+  deriving (Functor, Foldable, Traversable)
+
+type instance Base (Mono a) = MonoF a
+
+instance Recursive (Mono a) where
+    project (T a)     = TF a
+    project (a :-> b) = a :=> b
+
+instance Corecursive (Mono a) where
+    embed (TF a)    = T a
+    embed (a :=> b) = a :-> b
+
+instance Eq a => Unifiable (MonoF a) where
+    zipMatch (TF a)       (TF b)
+        | a == b    = Just (TF a)
+        | otherwise = Nothing
+    zipMatch (a :=> b)    (c :=> d) = Just (Right (a, c) :=> Right (b, d))
+
+    zipMatch TF     {} _ = Nothing
+    zipMatch (:=>)  {} _ = Nothing
+
+instance Pretty a => Pretty1 (MonoF a) where
+    liftPpr _  (TF a)       = ppr a
+    liftPpr pp (a :=> b)    = sexpr (PP.text "->") [pp a, pp b]
+
+
+
 
 -------------------------------------------------------------------------------
 -- Pretty
