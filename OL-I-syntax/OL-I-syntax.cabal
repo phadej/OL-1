@@ -29,11 +29,12 @@ library
     GeneralizedNewtypeDeriving
 
   build-depends:
-    , base               ^>=4.10.1.0 || ^>=4.11.1.0
+    , base                ^>=4.10.1.0 || ^>=4.11.1.0
     , bound
     , bound-extras
     , bytestring
     , containers
+    , integer-logarithms
     , mtl
     , parsers
     , pretty-compact
@@ -42,7 +43,6 @@ library
     , text-short
     , trifecta
     , unification-rigid
-    , integer-logarithms
     , utf8-string
 
   exposed-modules:
@@ -51,6 +51,7 @@ library
     OL1.Syntax.Parser
     OL1.Syntax.Pretty
     OL1.Syntax.Sym
+    OL1.Syntax.ToSyntax
     OL1.Syntax.Type
 
 test-suite syntax-unittests
@@ -63,6 +64,6 @@ test-suite syntax-unittests
   build-depends:
     , base
     , OL-I-syntax
+    , QuickCheck
     , tasty
     , tasty-quickcheck
-    , QuickCheck
