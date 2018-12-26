@@ -7,8 +7,8 @@ module OL1.Syntax.Parser (
 import Control.Applicative (many, some, (<|>))
 import Data.String         (fromString)
 import Text.Trifecta
-       (Parser, Result (..), eof, highlight, parens, parseByteString, satisfy,
-       token, whiteSpace, _errDoc)
+       (Parser, Result (..), eof, highlight, choice, parens, parseByteString, satisfy,
+       token, whiteSpace, _errDoc, char, string)
 import Text.Trifecta.Delta (Delta (Directed))
 
 import qualified Data.ByteString             as BS
@@ -16,6 +16,7 @@ import qualified Data.ByteString.UTF8        as UTF8
 import qualified Text.Parser.Token.Highlight as H
 
 import OL1.Syntax.Sym
+import OL1.Syntax.Reserved
 import OL1.Syntax.Type
 
 syntaxFromString :: String -> Either String Syntax
@@ -34,7 +35,19 @@ parseSyntaxes fp bs =
         Failure err -> Left $ show $ _errDoc err
 
 syntaxP :: Parser Syntax
-syntaxP = SSym <$> symP <|> SList <$> parens (many syntaxP)
+syntaxP = SSym <$> symP <|> parens (listP <|> pure SNil)
+  where
+    listP :: Parser Syntax
+    listP = (SRList <$> reservedP <|> SList <$> syntaxP) <*> many appSyntaxP
+
+reservedP :: Parser Reserved
+reservedP = choice
+    [ token $ highlight H.ReservedIdentifier $ r <$ string (reservedToString r)
+    | r <- [ minBound .. maxBound ]
+    ]
+
+appSyntaxP :: Parser AppSyntax
+appSyntaxP = At <$ char '@' <*> syntaxP <|> Juxta <$> syntaxP
 
 symP :: Parser Sym
 symP = token $ highlight H.Symbol $ fromString <$> some symCharP where

@@ -1,34 +1,57 @@
 module OL1.Syntax.Type (
-    Syntax (..)
+    Syntax (..),
+    AppSyntax (..),
     ) where
 
-import Data.String     (IsString (..))
-import Test.QuickCheck (Arbitrary (..))
+import Data.String                  (IsString (..))
 import Math.NumberTheory.Logarithms (intLog2)
-import Control.Monad (replicateM)
 
 import qualified Test.QuickCheck as QC
 
+import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 
 data Syntax
     = SSym Sym
-    | SList [Syntax]
+    | SNil
+    | SList Syntax [AppSyntax]
+    | SRList Reserved [AppSyntax]
+  deriving (Eq, Show)
+
+data AppSyntax
+    = Juxta Syntax
+    | At Syntax
   deriving (Eq, Show)
 
 instance IsString Syntax where
     fromString = SSym . fromString
 
-instance Arbitrary Syntax where
-    arbitrary = QC.sized arb where
-        arb n | n <= 0    = SSym <$> arbitrary
-              | otherwise = QC.oneof
-                  [ SSym <$> arbitrary
-                  , do
-                      let m = intLog2 n
-                      p <- QC.choose (0, m)
-                      SList <$> replicateM p (arb m)
-                  ]
+instance QC.Arbitrary AppSyntax where
+    arbitrary = QC.oneof
+        [ Juxta <$> QC.arbitrary
+        , At <$> QC.arbitrary
+        ]
 
-    shrink (SSym s)   = SSym <$> shrink s
-    shrink (SList xs) = xs ++ map SList (shrink xs)
+instance QC.Arbitrary Syntax where
+    arbitrary = QC.sized $ \n ->
+        if n <= 0
+        then QC.oneof
+            [ SSym <$> QC.arbitrary
+            , pure SNil 
+            ]
+        else QC.oneof
+            [ SSym <$> QC.arbitrary
+            , pure SNil
+            , SList <$> QC.scale intLog2 QC.arbitrary <*> QC.listOf (QC.scale intLog2 QC.arbitrary)
+            , SRList <$> QC.arbitrary <*> QC.listOf (QC.scale intLog2 QC.arbitrary)
+            ]
+
+
+    shrink (SSym s)      = SSym <$> QC.shrink s
+    shrink SNil          = []
+    shrink (SList x xs)  = SNil : x : map unAppSyntax xs
+    shrink (SRList _ xs) = SNil : map unAppSyntax xs
+
+unAppSyntax :: AppSyntax -> Syntax
+unAppSyntax (Juxta s) = s
+unAppSyntax (At s)    = s

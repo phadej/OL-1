@@ -51,6 +51,7 @@ library
     OL1.Syntax.Parser
     OL1.Syntax.Pretty
     OL1.Syntax.Sym
+    OL1.Syntax.Reserved
     OL1.Syntax.ToSyntax
     OL1.Syntax.Type
 

@@ -1,33 +1,35 @@
 module OL1.Syntax.Sym where
 
+import Data.Char       (isPrint, isSeparator)
 import Data.String     (IsString (..))
 import Data.Text.Short (ShortText)
-import Test.QuickCheck (Arbitrary (..), suchThat, liftArbitrary)
-import Data.Char (isPrint, isSeparator)
 
 import qualified Data.Text.Short as T
+import qualified Test.QuickCheck as QC
 
 newtype Sym = Sym ShortText
   deriving (Eq, Ord, Show)
 
 isSymChar :: Char -> Bool
-isSymChar c = isPrint c && c `notElem` "()[]{}" && not (isSeparator c)
+isSymChar c = isPrint c && c `notElem` "()[]{}@" && not (isSeparator c)
 
 instance IsString Sym where
     fromString = Sym . fromString
 
-instance Arbitrary Sym where
-    arbitrary = mk <$> arbChar <*> liftArbitrary arbChar where
-        mk x xs = Sym $ T.pack $ x : xs
-
-        arbChar = arbitrary `suchThat` isSymChar
+instance QC.Arbitrary Sym where
+    arbitrary = QC.frequency
+        [ (10, fromString <$> QC.listOf1 (QC.elements ['a'..'z']))
+        , (1, fromString <$> QC.listOf1 arbChar)
+        ]
+      where
+        arbChar = QC.arbitrary `QC.suchThat` isSymChar
 
     shrink (Sym s) = case T.unpack s of
         []     -> []
         (x:xs) ->
             [ Sym (T.pack ys)
-            | x' <- shrink x
-            , xs' <- shrink xs
+            | x' <- QC.shrink x
+            , xs' <- QC.shrink xs
             , let ys = filter isSymChar (x' : xs')
             , not (null ys)
             ]
