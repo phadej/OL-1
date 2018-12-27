@@ -247,7 +247,7 @@ toSyntaxChk (Inf a) = toSyntaxInf a
 toSyntaxChk (Lam (ISym n) b) = freshen n $ \s -> sfn
     (toSyntax s)
     (toSyntaxChk (instantiate1H (return (SSym s)) b))
-toSyntaxChk (LamTy (ISym n) b) = freshen n $ \s -> sfn
+toSyntaxChk (LamTy (ISym n) b) = freshen n $ \s -> spoly
     (toSyntax s)
     (toSyntaxChk (unChk' (instantiate1H (return (SSym s)) b)))
 
