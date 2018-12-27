@@ -13,10 +13,10 @@ import System.FilePath      (takeExtension, (-<.>), (</>))
 import Test.Tasty           (TestTree, defaultMain, testGroup)
 import Test.Tasty.Golden    (goldenVsStringDiff)
 
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BS8
-import qualified Data.ByteString.Lazy  as LBS
-import qualified Data.ByteString.UTF8  as UTF8
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBS8
+import qualified Data.ByteString.UTF8       as UTF8
 
 main :: IO ()
 main = do
@@ -32,7 +32,7 @@ mkCase :: FilePath -> TestTree
 mkCase name = goldenVsStringDiff name diff output $ do
     contents <- BS.readFile input
 
-    return $ LBS.fromStrict $ BS8.unlines $ execWriter $ runE $ do
+    return $ LBS8.unlines $ map LBS.fromStrict $ execWriter $ runE $ do
         header "INPUT"
         tell [ contents ]
 
