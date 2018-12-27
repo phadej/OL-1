@@ -23,11 +23,18 @@ module OL1.Syntax (
     freshen,
     freshenI,
     -- ** Higher-level combinators
+    sthe,
     sarrow,
     sforall,
+    sapp,
+    sappTy,
+    sfn,
+    spoly,
     -- * FromSyntax
     FromSyntax (..),
     runParser,
+    Parser,
+    failure,
     ) where
 
 import OL1.Syntax.FromSyntax

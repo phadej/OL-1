@@ -1,1 +1,1 @@
-((the (fn-type A B) (fn (y) (f y)) ) x)
+((the (-> A B) (fn (y) (f y)) ) x)

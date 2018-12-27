@@ -1,7 +1,7 @@
 module OL1.Syntax.ToSyntax where
 
 import Bound.Var                  (Var (..))
-import Control.Monad.State.Strict (State, evalState)
+import Control.Monad.State.Strict (State, evalState, modify', get, put)
 import Control.Unification.Rigid  (MetaVar (..), UTerm (..))
 import Data.Char                  (isDigit)
 import Control.Applicative (liftA2)
@@ -62,15 +62,13 @@ toSyntax1 = liftToSyntax toSyntax
 
 -- | Make fresh symbol variant.
 freshen :: Sym -> (Sym -> Printer a) -> Printer a
-freshen s@(Sym _) f = f s
-{- Printer $ do
+freshen (Sym s) f = Printer $ do
     xs <- get
     let u = freshU xs (genU (toU s))
     put (Set.insert u xs)
     x <- unPrinter (f (fromString (fromU u)))
     modify' (Set.delete u)
     return x
--}
 
 freshenI :: ISym -> (Sym -> Printer a) -> Printer a
 freshenI (ISym s) = freshen s
@@ -95,6 +93,10 @@ srlist r = fmap (SRList r) . sequenceA
 -- Higher order
 -------------------------------------------------------------------------------
 
+sthe :: SyntaxM -> SyntaxM -> SyntaxM
+sthe = liftA2 impl where
+    impl t x = SRList RThe [t, x]
+
 sarrow :: SyntaxM -> SyntaxM -> SyntaxM
 sarrow = liftA2 arrow where
     arrow a (SRList RFnType b) = SRList RFnType (a : b)
@@ -104,6 +106,29 @@ sforall :: SyntaxM -> SyntaxM -> SyntaxM
 sforall = liftA2 forall where
     forall a (SRList RFnType b) = SRList RFnType (SAt a : b)
     forall a b                  = SRList RFnType [SAt a, b]
+
+sapp :: SyntaxM -> SyntaxM -> SyntaxM
+sapp = liftA2 apply where
+    apply (SList f) x = SList (snoc f x)
+    apply f x         = SList [f, x]
+
+sappTy :: SyntaxM -> SyntaxM -> SyntaxM
+sappTy = liftA2 apply where
+    apply (SList f) x = SList (snoc f (SAt x))
+    apply f x         = SList [f, SAt x]
+
+sfn :: SyntaxM -> SyntaxM -> SyntaxM
+sfn = liftA2 impl where
+    impl x (SRList RFn [SList xs, b]) = SRList RFn [SList (x:xs), b]
+    impl x b                          = SRList RFn [SList [x], b]
+
+spoly :: SyntaxM -> SyntaxM -> SyntaxM
+spoly = liftA2 impl where
+    impl x (SRList RFn [SList xs, b]) = SRList RFn [SList (SAt x:xs), b]
+    impl x b                          = SRList RFn [SList [SAt x], b]
+
+snoc :: [a] -> a -> [a]
+snoc xs x = xs ++ [x]
 
 -------------------------------------------------------------------------------
 -- U

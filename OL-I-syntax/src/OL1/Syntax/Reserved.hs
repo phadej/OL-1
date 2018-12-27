@@ -11,7 +11,7 @@ data Reserved
 reservedToString :: Reserved -> String
 reservedToString RThe    = "the"
 reservedToString RFn     = "fn"
-reservedToString RFnType = "fn-type"
+reservedToString RFnType = "->"
 
 instance QC.Arbitrary Reserved where
     arbitrary = QC.arbitraryBoundedEnum

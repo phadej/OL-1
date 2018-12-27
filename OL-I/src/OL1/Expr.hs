@@ -18,7 +18,6 @@ import Data.String          (IsString (..))
 
 import OL1.Pretty
 import OL1.Syntax
-import OL1.Syntax.FromSyntax
 import OL1.Syntax.Sym
 import OL1.Type
 
@@ -32,17 +31,15 @@ data Inf (b :: Type) (a :: Type)
     | AppTy (Inf b a) (Mono b)
     -- Type annotations
     | Ann (Chk b a) (Poly b)
-    -- TODO: Record
 
 -- | 'Chk'-able terms.
 data Chk (b :: Type) (a :: Type)
     -- Inferrable term
     = Inf (Inf b a)
     -- Function spaces
-    | Lam ISym(ScopeH ISym(Chk b) (Inf b) a)
+    | Lam ISym (ScopeH ISym (Chk b) (Inf b) a)
     -- Polymorphism
-    | LamTy ISym(ScopeH ISym(Chk' a) Mono b)
-    -- TODO: Record
+    | LamTy ISym (ScopeH ISym (Chk' a) Mono b)
 
 newtype Inf' a b = Inf' { unInf' :: Inf b a }
 newtype Chk' a b = Chk' { unChk' :: Chk b a }
@@ -225,7 +222,6 @@ pprChk (LamTy n b) = pprScoped (isymToText n) $ \n' ->
 -- FromSyntax
 -------------------------------------------------------------------------------
 
--- | TODO the context
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
     fromSyntax (SSym s)           = return (V s)
     fromSyntax (SList [f, SAt x])   = AppTy <$> fromSyntax f <*> fromSyntax x
@@ -235,7 +231,6 @@ instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
 
     fromSyntax s = failure $ "not inf: " ++ syntaxToString s
 
--- | TODO the context
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Chk b a) where
     -- fn
     fromSyntax (SRList RFn [SList ss, body]) = do
@@ -259,6 +254,31 @@ instance (a ~ Sym, b ~ Sym) => FromSyntax (Chk b a) where
         failure $ "invalid fn args: " ++ show xs
 
     fromSyntax s = Inf <$> fromSyntax s
+
+-------------------------------------------------------------------------------
+-- ToSyntax
+-------------------------------------------------------------------------------
+
+instance (ToSyntax a, ToSyntax b) => ToSyntax (Inf a b) where
+    toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxInf
+
+instance (ToSyntax a, ToSyntax b) => ToSyntax (Chk a b) where
+    toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxChk
+
+toSyntaxInf :: Inf Syntax Syntax -> Printer Syntax
+toSyntaxInf (V x)       = return x
+toSyntaxInf (App f x)   = sapp (toSyntaxInf f) (toSyntaxChk x)
+toSyntaxInf (AppTy x t) = sappTy (toSyntaxInf x) (toSyntaxMono t)
+toSyntaxInf (Ann x t)   = sthe (toSyntaxPoly t) (toSyntaxChk x)
+
+toSyntaxChk :: Chk Syntax Syntax -> Printer Syntax
+toSyntaxChk (Inf a) = toSyntaxInf a
+toSyntaxChk (Lam (ISym n) b) = freshen n $ \s -> sfn
+    (toSyntax s)
+    (toSyntaxChk (instantiate1H (return (SSym s)) b))
+toSyntaxChk (LamTy (ISym n) b) = freshen n $ \s -> sfn
+    (toSyntax s)
+    (toSyntaxChk (unChk' (instantiate1H (return (SSym s)) b)))
 
 -------------------------------------------------------------------------------
 -- Smart

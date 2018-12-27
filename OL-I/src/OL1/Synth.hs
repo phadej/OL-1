@@ -14,18 +14,19 @@ import Control.Unification.Rigid
 import Data.Bifoldable           (bifoldMap)
 import Data.Bifunctor            (Bifunctor (..))
 import Data.Bitraversable        (bitraverse)
-import Data.String (fromString)
 import Data.Functor.Product      (Product (..))
+import Data.List                 (nub)
+import Data.Monoid               (Endo (..))
+import Data.String               (fromString)
 import Data.Traversable          (for)
+
+import qualified Data.Map.Strict as Map
 
 import OL1.Error
 import OL1.Expr
 import OL1.Pretty
-import OL1.Type
 import OL1.Syntax
-
-import qualified Data.IntSet     as IS
-import qualified Data.Map.Strict as Map
+import OL1.Type
 
 -------------------------------------------------------------------------------
 -- Type aliases
@@ -117,34 +118,37 @@ flattenChk :: Chk (U b v) a -> Chk (Either v b) a
 flattenChk = flip bindChkMono flattenMono
 
 generalise :: Inf (U b MetaVar) a -> Poly (U b MetaVar) -> Inf b a
-generalise x0 t0 = first fromRight' $ fst $ foldr (uncurry . f) (x1, t1) (IS.toList intVars) -- error $ show intVars
+generalise x0 t0
+    = first fromRight'
+    $ fst
+    $ foldr f (x1, t1) vars
   where
     x1 = flattenInf x0
     t1 = flattenPoly t0
+
+    vars = nub $ appEndo
+        (foldMap sing t1 <> bifoldMap sing (const mempty) x1)
+        []
+
+    sing (Left mv) = Endo (mv :)
+    sing (Right _) = mempty
 
     fromRight' :: Either MetaVar b -> b
     fromRight' (Right b) = b
     fromRight' (Left i)  = error $ "panic! Ungeneralised variable " ++ show i
 
-    intVars :: IS.IntSet
-    intVars = mappend
-        (bifoldMap sing (const mempty) x1)
-        (foldMap sing t1)
-
-    sing (Left (MetaVar n)) = IS.singleton n
-    sing (Right _)          = IS.empty
-
-    f :: Int ->  Inf (Either MetaVar b) a -> Poly (Either MetaVar b)
-             -> (Inf (Either MetaVar b) a,   Poly (Either MetaVar b))
-    f v x t = (Ann x' t', t')  where
+    f :: MetaVar
+      -> (Inf (Either MetaVar b) a, Poly (Either MetaVar b))
+      -> (Inf (Either MetaVar b) a, Poly (Either MetaVar b))
+    f v (x, t) = (Ann x' t', t')  where
         n :: ISym
-        n = fromString $ "?" ++ show (v + minBound)
+        n = fromString "t"
 
         x' = LamTy n $ abstractH abst $ Chk' $ unAnn x
 
         t' = Forall n $ abstractH abst t
 
-        abst (Left (MetaVar v'))
+        abst (Left v')
             | v == v'   = Just n
             | otherwise = Nothing
         abst (Right _)  = Nothing

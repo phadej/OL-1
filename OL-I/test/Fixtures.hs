@@ -40,23 +40,26 @@ mkCase name = goldenVsStringDiff name diff output $ do
         s0 <- either throwError pure $ parseSyntax input contents
         tellString $ syntaxToString s0
 
-        header "FROMSYNTAX"
+        header "FROM-SYNTAX"
         expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk Sym Sym)
-        tellString $ pretty expr0
+        tellString $ syntaxToString $ runPrinter $ toSyntax expr0
 
-        header "INFERED"
+        header "INFERRED"
+        let toInf (Inf e) = first Just e
+            toInf e       = Ann (first Just e) (Mono $ T Nothing)
+
         (expr1, _ws) <- either (throwError . pretty) pure $ synth
             ctx
-            (Ann (first Just expr0) (Mono $ T Nothing))
-        tellString $ pretty expr1
+            (toInf expr0)
+        tellString $ syntaxToString $ runPrinter $ toSyntax expr1
 
-        header "CHECKED"
+        header "CHECKED TYPE"
         (val, ty) <- either (throwError . pretty) pure $ infer
             ctx
             expr1
         tellString $ syntaxToString $ runPrinter $ toSyntax ty
 
-        header "EVALED"
+        header "EVALUATED VALUE"
         tellString $ syntaxToString $ runPrinter $ toSyntax val
 
   where

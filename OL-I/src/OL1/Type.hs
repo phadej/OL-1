@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OL1.Type where
 
-import Bound.ScopeH              (ScopeH, instantiate1H)
+import Bound.ScopeH              (ScopeH, instantiate1H, abstractHEither)
 import Control.Monad             (ap)
 import Control.Monad.Module      (Module (..))
 import Control.Unification.Rigid (Unifiable (..))
@@ -157,14 +157,17 @@ isymToText (ISym (Sym s)) = T.pack $ TS.unpack s
 -------------------------------------------------------------------------------
 
 instance ToSyntax a => ToSyntax (Mono a) where
-    toSyntax (T a) = toSyntax a
-    toSyntax (a :-> b) = sarrow (toSyntax a) (toSyntax b)
+    toSyntax a = traverse toSyntax a >>= toSyntaxMono
 
 instance ToSyntax a => ToSyntax (Poly a) where
     toSyntax a = traverse toSyntax a >>= toSyntaxPoly
 
+toSyntaxMono :: Mono Syntax -> Printer Syntax
+toSyntaxMono (T a)     = return a
+toSyntaxMono (a :-> b) = sarrow (toSyntaxMono a) (toSyntaxMono b)
+
 toSyntaxPoly :: Poly Syntax -> Printer Syntax
-toSyntaxPoly (Mono a)     = toSyntax a
+toSyntaxPoly (Mono a)     = toSyntaxMono a
 toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
     let s'' = SSym s'
     in sforall (return s'') $ toSyntax $ instantiate1H (return s'') a
@@ -173,13 +176,28 @@ toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
 -- FromSyntax
 -------------------------------------------------------------------------------
 
-instance FromSyntax a => FromSyntax (Mono a) where
-    fromSyntax (SRList RFnType [a, b]) =
-        (:->) <$> fromSyntax a <*> fromSyntax b
+instance a ~ Sym => FromSyntax (Mono a) where
+    fromSyntax (SRList RFnType [])     = failure "empty fn-type" -- TODO: unit?
+    fromSyntax (SRList RFnType [a])    = fromSyntax a
+    fromSyntax (SRList RFnType (a:bs)) = do
+        bs' <- fromSyntax (SRList RFnType bs)
+        (:->) <$> fromSyntax a <*> pure bs'
+
     fromSyntax s = T <$> fromSyntax s
 
-instance FromSyntax a => FromSyntax (Poly a) where
-    fromSyntax s = Mono <$> fromSyntax s
+instance a ~ Sym => FromSyntax (Poly a) where
+    fromSyntax (SRList RFnType (SAt (SSym x) : xs)) = fromSyntaxPoly x xs
+    fromSyntax s                                    = Mono <$> fromSyntax s
+
+fromSyntaxPoly :: Sym -> [Syntax] -> Parser (Poly Sym)
+fromSyntaxPoly s xs = do
+    ys <- fromSyntax (SRList RFnType xs)
+    return $ Forall s' $ abstractHEither k ys
+  where
+    s' = ISym s
+
+    k n | n == s    = Left s'
+        | otherwise = Right n
 
 -------------------------------------------------------------------------------
 -- Utilities
