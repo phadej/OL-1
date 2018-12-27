@@ -199,7 +199,7 @@ instance (ToSyntax b, ToSyntax a) => ToSyntax (Var b a) where
 
 -- | TODO: introduce holes
 instance ToSyntax MetaVar where
-    toSyntax (MetaVar n) = return (fromString $ "?" ++ show n)
+    toSyntax (MetaVar n) = return (fromString $ "?" ++ show (n + minBound))
 
 instance ToSyntax1 t => ToSyntax1 (UTerm t) where
     liftToSyntax s = go where

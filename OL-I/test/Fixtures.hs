@@ -4,6 +4,7 @@ module Main (main) where
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Writer (Writer, execWriter, tell)
 import Data.Bifunctor       (first)
+import Data.Foldable        (for_)
 import Data.List            (sort)
 import System.Directory     (listDirectory)
 import System.FilePath      (takeExtension, (-<.>), (</>))
@@ -42,22 +43,25 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
         header "FROM-SYNTAX"
         expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk Sym Sym)
-        tellString $ syntaxToString $ runPrinter $ toSyntax expr0
+        tellString $ pretty expr0
 
         header "INFERRED"
         let toInf (Inf e) = first Just e
             toInf e       = Ann (first Just e) (Mono $ T Nothing)
 
-        (expr1, _ws) <- either (throwError . show) pure $ synth
+        (expr1, ws) <- either (throwError . show) pure $ synth
             ctx
             (toInf expr0)
-        tellString $ syntaxToString $ runPrinter $ toSyntax expr1
+        for_ ws $ \(NotInScope s ty) -> tellString $
+            "WARN: " ++ pretty (sthe (toSyntax ty) (toSyntax s))
+
+        tellString $ pretty expr1
 
         header "CHECKED TYPE"
         (val, ty) <- either (throwError . show) pure $ infer
             ctx
             expr1
-        tellString $ syntaxToString $ runPrinter $ toSyntax ty
+        tellString $ pretty ty
 
         header "EVALUATED VALUE"
         tellString $ syntaxToString $ runPrinter $ toSyntax val
@@ -90,5 +94,8 @@ mkCase name = goldenVsStringDiff name diff output $ do
     ctx "x" = Just $ Mono "A"
 
     ctx _ = Nothing
+
+pretty :: ToSyntax a => a -> String
+pretty = syntaxToString . runPrinter . toSyntax
 
 type M = ExceptT String (Writer [BS.ByteString])
