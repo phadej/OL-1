@@ -87,3 +87,25 @@ test-suite golden
     , utf8-string
 
   default-extensions: OverloadedStrings
+
+test-suite fixtures
+  type:               exitcode-stdio-1.0
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     test
+  main-is:            Fixtures.hs
+  build-depends:
+    , base
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , mtl
+    , OL-I
+    , OL-I-syntax
+    , pretty-compact
+    , tasty
+    , tasty-golden
+    , utf8-string
+
+  default-extensions: OverloadedStrings

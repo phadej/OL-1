@@ -29,6 +29,7 @@ library
     GeneralizedNewtypeDeriving
 
   build-depends:
+    , ansi-wl-pprint
     , base                ^>=4.10.1.0 || ^>=4.11.1.0
     , bound
     , bound-extras
@@ -50,8 +51,9 @@ library
     OL1.Syntax
     OL1.Syntax.Parser
     OL1.Syntax.Pretty
-    OL1.Syntax.Sym
     OL1.Syntax.Reserved
+    OL1.Syntax.Sugar
+    OL1.Syntax.Sym
     OL1.Syntax.ToSyntax
     OL1.Syntax.Type
 
