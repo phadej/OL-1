@@ -6,10 +6,10 @@ import Control.Unification.Rigid
        (Fallible (..), RigidFallible (..), RigidFallibleAll (..),
        RigidVariable, Variable)
 import Data.String               (IsString (..))
+import Text.PrettyPrint.Compact ((<+>), ($$), (</>))
 
 import qualified Text.PrettyPrint.Compact as PP
 
-import OL1.Pretty
 import OL1.Syntax
 
 -- | Various errors occuring during type-checking of terms.
@@ -43,7 +43,7 @@ data Err
 
 instance Show Err where
     -- TODO: use renderWith
-    showsPrec _ e = showString $ pretty (ppr e)
+    showsPrec _ e = showString $ PP.render $ prettyErr e
 
 instance Exception Err
 
@@ -61,63 +61,64 @@ instance (ToSyntax n) => RigidFallible n Err where
 instance (RigidVariable n v, ToSyntax n, ToSyntax1 t, ToSyntax v) => RigidFallibleAll n t v Err where
     rigidBindFailure n t = RigidBindFailure (toSyntax' n) (toSyntax1' t)
 
-instance Pretty Err where
-    ppr (SomeErr err) = "error:" </> pprText err
-    ppr (VariableNotInScope x ctx) = ppCheckedTerms ctx $
-        "error:" </> err
-      where
-        err = "Variable not in scope" <+> ppr x
-    ppr (TypeMismatch expt act term ctx) = ppCheckedTerms ctx $
-        "error:" </> types $$$ term'
-      where
-        types = "Couldn't match expected type" <+> ppr expt <+> "with actual type" <+> ppr act
-        term' = "In the expression:" <+> ppr term
-    ppr (LambdaNotArrow t term ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$$ ann
-      where
-        err = "The lambda expression" <+> ppr term <+> "doesn't have an arrow type"
-        ann = "Annotated with" <+> ppr t
-    ppr (PolyNotForall t term ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$$ ann
-      where
-        err = "The type abstraction" <+> ppr term <+> "doesn't have a polymorphic type"
-        ann = "Annotated with" <+> ppr t
-    ppr (NotAFunction t f x ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$$ f' $$$ x'
-      where
-        err = "Couldn't match actual type" <+> ppr t <+> "with a function type"
-        f' = "In the application of" <+> ppr f
-        x' = "to the value" <+> ppr x
-    ppr (NotAPolyFunction t f x ctx) = ppCheckedTerms ctx $
-        "error:" </> err $$$ f' $$$ x'
-      where
-        err = "Couldn't match actual type" <+> ppr t <+> "with a type abstraction"
-        f' = "In the type application of" <+> ppr f
-        x' = "to the type" <+> ppr x
+prettyErr :: Err -> PP.Doc ()
+prettyErr (SomeErr err) = "error:" </> PP.text err
 
-    ppr (ApplyPanic f) =
-        "panic:" </> err
-      where
-        err = "Trying to apply not-a-lambda" <+> ppr f
+prettyErr (VariableNotInScope x ctx) = ppCheckedTerms ctx $
+    "error:" </> err
+  where
+    err = "Variable not in scope" <+> prettySyntax x
+prettyErr (TypeMismatch expt act term ctx) = ppCheckedTerms ctx $
+    "error:" </> types $$ term'
+  where
+    types = "Couldn't match expected type" <+> prettySyntax expt <+> "with actual type" <+> prettySyntax act
+    term' = "In the expression:" <+> prettySyntax term
+prettyErr (LambdaNotArrow t term ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ ann
+  where
+    err = "The lambda expression" <+> prettySyntax term <+> "doesn't have an arrow type"
+    ann = "Annotated with" <+> prettySyntax t
+prettyErr (PolyNotForall t term ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ ann
+  where
+    err = "The type abstraction" <+> prettySyntax term <+> "doesn't have a polymorphic type"
+    ann = "Annotated with" <+> prettySyntax t
+prettyErr (NotAFunction t f x ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ f' $$ x'
+  where
+    err = "Couldn't match actual type" <+> prettySyntax t <+> "with a function type"
+    f' = "In the application of" <+> prettySyntax f
+    x' = "to the value" <+> prettySyntax x
+prettyErr (NotAPolyFunction t f x ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ f' $$ x'
+  where
+    err = "Couldn't match actual type" <+> prettySyntax t <+> "with a type abstraction"
+    f' = "In the type application of" <+> prettySyntax f
+    x' = "to the type" <+> prettySyntax x
 
-    ppr (OccursFailure v t) =
-        "error:" </>
-        "Occurs check, cannot construct infinite type" <+> ppr v <+> " ~ " <+> ppr t
-    ppr (MismatchFailure a b) =
-        "error:" </>
-        "Couldn't match expected type" <+> ppr b <+> "with actual type" <+> ppr a
-    ppr (EscapingRigidFailure a) =
-        "error:" </>
-        "Rigid variable" <+> ppr a <+> "escaping its scope"
-    ppr (RigidMismatchFailure a b) =
-        "error:" </>
-        "Couldn't match rigid type" <+> ppr b <+> "with actual rigid type" <+> ppr a
-    ppr (RigidBindFailure a b) =
-        "error:" </>
-        "Couldn't match type" <+> ppr b <+> "with actual rigid type" <+> ppr a
+prettyErr (ApplyPanic f) =
+    "panic:" </> err
+  where
+    err = "Trying to apply not-a-lambda" <+> prettySyntax f
 
-ppCheckedTerms :: [Syntax] -> MDoc -> MDoc
+prettyErr (OccursFailure v t) =
+    "error:" </>
+    "Occurs check, cannot construct infinite type" <+> prettySyntax v <+> " ~ " <+> prettySyntax t
+prettyErr (MismatchFailure a b) =
+    "error:" </>
+    "Couldn't match expected type" <+> prettySyntax b <+> "with actual type" <+> prettySyntax a
+prettyErr (EscapingRigidFailure a) =
+    "error:" </>
+    "Rigid variable" <+> prettySyntax a <+> "escaping its scope"
+prettyErr (RigidMismatchFailure a b) =
+    "error:" </>
+    "Couldn't match rigid type" <+> prettySyntax b <+> "with actual rigid type" <+> prettySyntax a
+prettyErr (RigidBindFailure a b) =
+    "error:" </>
+    "Couldn't match type" <+> prettySyntax b <+> "with actual rigid type" <+> prettySyntax a
+
+ppCheckedTerms :: [Syntax] -> PP.Doc () -> PP.Doc ()
 ppCheckedTerms [] doc = doc
 ppCheckedTerms ts doc = doc
-    $$$ "when checking expressions"
-    $$$ (PP.vcat <$> traverse ppr ts)
+    $$ "when checking expressions"
+    $$ PP.vcat (map prettySyntax ts)

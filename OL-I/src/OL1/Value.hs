@@ -19,7 +19,6 @@ import Data.Functor.Classes
 import Data.String          (IsString (..))
 
 import OL1.Error
-import OL1.Pretty
 import OL1.Type
 import OL1.Syntax
 import OL1.Syntax.Sym
@@ -250,32 +249,6 @@ instance (Show a, Show b) => Show (Intro a b)  where showsPrec = showsPrec2
 instance (Show a, Show b) => Show (Intro' a b) where showsPrec = showsPrec2
 instance (Show a, Show b) => Show (Elim a b)   where showsPrec = showsPrec2
     
--------------------------------------------------------------------------------
--- Pretty instances
--------------------------------------------------------------------------------
-
-instance Pretty b => Pretty1 (Intro b) where
-    liftPpr pp i = bitraverse ppr pp i >>= pprIntro
-
-instance Pretty b => Pretty1 (Elim b) where
-    liftPpr pp x = bitraverse ppr pp x >>= pprElim
-
-instance (Pretty a, Pretty b) => Pretty (Intro b a) where ppr = ppr1
-instance (Pretty a, Pretty b) => Pretty (Elim b a)  where ppr = ppr1
-
-pprIntro :: Intro Doc Doc -> MDoc
-pprIntro (VErr err)      = ppr err
-pprIntro (VLam n _ b)      = pprScoped (isymToText n) $ \n' ->
-    sexpr (pprText "fn") [ return n', pprIntro $ instantiate1return n' b ]
-pprIntro (VLamTy n b)  = pprScoped (isymToText n) $ \n' ->
-     sexpr (pprText "poly") [ return n', pprIntro $ instantiate1Mono (return n') b ]
-pprIntro (VCoerce x)     = pprElim x
-
-pprElim :: Elim Doc Doc -> MDoc
-pprElim (VVar a)     = ppr a
-pprElim (VApp f x)   = sexpr (pprElim f) [pprIntro x]
-pprElim (VAppTy x t) = sexpr (pprElim x) [pprChar '@' <> pprMono t]
-
 -------------------------------------------------------------------------------
 -- ToSyntax
 -------------------------------------------------------------------------------

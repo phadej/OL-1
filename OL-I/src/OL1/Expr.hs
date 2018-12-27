@@ -16,7 +16,6 @@ import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.Kind            (Type)
 import Data.String          (IsString (..))
 
-import OL1.Pretty
 import OL1.Syntax
 import OL1.Syntax.Sym
 import OL1.Type
@@ -183,40 +182,6 @@ instance (Eq b) => Eq1 (Chk b) where
 
 instance (Eq b, Eq a) => Eq (Inf b a) where (==) = eq1
 instance (Eq b, Eq a) => Eq (Chk b a) where (==) = eq1
-
--------------------------------------------------------------------------------
--- Pretty
--------------------------------------------------------------------------------
-
-instance Pretty b => Pretty1 (Inf b) where
-    liftPpr pp x = bitraverse ppr pp x >>= pprInf
-
-instance Pretty b => Pretty1 (Chk b) where
-    liftPpr pp x = bitraverse ppr pp x >>= pprChk
-
-instance (Pretty b, Pretty a) => Pretty (Chk b a) where ppr = ppr1
-instance (Pretty b, Pretty a) => Pretty (Inf b a) where ppr = ppr1
-
-pprInf :: Inf Doc Doc -> MDoc
-pprInf (V x) = return x
-pprInf (App f x) = case peelApp f of
-    (f', xs) -> sexpr (pprInf f')
-        [ either (\u -> pprChar '@' <> pprMono u) pprChk e
-        | e <- xs ++ [Right x]
-        ]
-pprInf (AppTy x t) = case peelApp x of
-    (f', xs) -> sexpr (pprInf f')
-        [ either (\u -> pprChar '@' <> pprMono u) pprChk e
-        | e <- xs ++ [Left t]
-        ]
-pprInf (Ann e b)   = sexpr (pprText "the") [pprPoly b, pprChk e]
-
-pprChk :: Chk Doc Doc -> MDoc
-pprChk (Inf i)     = pprInf i
-pprChk (Lam n b)   = pprScoped (isymToText n) $ \n' ->
-    sexpr (pprText "fn") [ return n', pprChk $ instantiate1H (return n') b ]
-pprChk (LamTy n b) = pprScoped (isymToText n) $ \n' ->
-    sexpr (pprText "poly") [ return n', pprChk $ unChk' $ instantiate1H (return n') b ]
 
 -------------------------------------------------------------------------------
 -- FromSyntax

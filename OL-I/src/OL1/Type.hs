@@ -13,12 +13,7 @@ import Data.Functor.Classes
        (Eq1 (..), Show1 (..), eq1, showsBinaryWith, showsPrec1, showsUnaryWith)
 import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
 import Data.String               (IsString (..))
-import Data.Text                 (Text)
 
-import qualified Data.Text       as T
-import qualified Data.Text.Short as TS
-
-import OL1.Pretty
 import OL1.Syntax
 import OL1.Syntax.Sym
 
@@ -132,36 +127,6 @@ instance Eq a => Unifiable (MonoF a) where
 
     zipMatch TF     {} _ = Nothing
     zipMatch (:=>)  {} _ = Nothing
-
-instance Pretty a => Pretty1 (MonoF a) where
-    liftPpr _  (TF a)       = ppr a
-    liftPpr pp (a :=> b)    = sexpr "->" [pp a, pp b]
-
--------------------------------------------------------------------------------
--- Pretty
--------------------------------------------------------------------------------
-
-instance Pretty1 Mono where
-    liftPpr pp x = traverse pp x >>= pprMono
-
-instance Pretty1 Poly where
-    liftPpr pp t = traverse pp t >>= pprPoly
-
-pprMono :: Mono Doc -> MDoc
-pprMono x = case peelArrow x of
-    ([], x') -> return x'
-    (xs, x') -> sexpr "->" (map pprMono xs ++ [return x'])
-
-pprPoly :: Poly Doc -> MDoc
-pprPoly (Mono d)     = liftPpr return d
-pprPoly (Forall n t) = pprScoped (isymToText n) $ \n' ->
-    sexpr "forall" [ return n', pprPoly $ instantiate1H (return n') t ]
-
-instance Pretty a => Pretty (Mono a) where ppr = ppr1
-instance Pretty a => Pretty (Poly a) where ppr = ppr1
-
-isymToText :: ISym -> Text
-isymToText (ISym (Sym s)) = T.pack $ TS.unpack s
 
 -------------------------------------------------------------------------------
 -- ToSyntax

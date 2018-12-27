@@ -52,7 +52,6 @@ library
   -- do we need?
   build-depends:      unification-rigid ^>=0
   exposed-modules:
-    OL1.Pretty
     OL1.Syntax
     OL1.Syntax.FromSyntax
     OL1.Syntax.Parser
