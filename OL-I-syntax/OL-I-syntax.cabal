@@ -9,7 +9,7 @@ description:
 
 author:             Oleg Grenrus <oleg.grenrus@iki.fi>
 maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
-license:            (GPL-2.0-only OR GPL-3.0-only)
+license:            GPL-2.0-or-later
 extra-source-files: golden/*.txt
 tested-with:        ghc ==8.2.2 || ==8.4.4
 
@@ -19,7 +19,6 @@ source-repository head
 
 library
   default-language:   Haskell2010
-  ghc-options:        -Wall
   hs-source-dirs:     src
   default-extensions:
     DerivingStrategies
@@ -28,27 +27,34 @@ library
     GADTs
     GeneralizedNewtypeDeriving
 
+  -- GHC boot libraries
   build-depends:
-    , ansi-wl-pprint
-    , base                ^>=4.10.1.0 || ^>=4.11.1.0
-    , bound
-    , bound-extras
-    , bytestring
-    , containers
-    , integer-logarithms
-    , mtl
-    , parsers
-    , pretty-compact
-    , QuickCheck
-    , text
-    , text-short
-    , trifecta
-    , unification-rigid
-    , utf8-string
+    , base        ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0
+    , bytestring  ^>=0.10.8.2
+    , containers  ^>=0.5.10.2 || ^>=0.6.0.1
+    , mtl         ^>=2.2.2
+    , text        ^>=1.2.3.0
 
+  -- other dependencies
+  build-depends:
+    , ansi-wl-pprint      ^>=0.6.8.2
+    , base-compat         ^>=0.10.5
+    , bound               ^>=2.0.1
+    , bound-extras        ^>=0
+    , integer-logarithms  ^>=1.0.2.2
+    , parsers             ^>=0.12.9
+    , pretty-compact      ^>=3.0
+    , QuickCheck          ^>=2.12.6.1
+    , text-short          ^>=0.1.2
+    , trifecta            ^>=2
+    , utf8-string         ^>=1.0.1.1
+
+  -- do we need?
+  build-depends:      unification-rigid ^>=0
   exposed-modules:
     OL1.Pretty
     OL1.Syntax
+    OL1.Syntax.FromSyntax
     OL1.Syntax.Parser
     OL1.Syntax.Pretty
     OL1.Syntax.Reserved
@@ -60,13 +66,17 @@ library
 test-suite syntax-unittests
   type:               exitcode-stdio-1.0
   default-language:   Haskell2010
-  ghc-options:        -Wall
   hs-source-dirs:     test
   main-is:            UnitTests.hs
   default-extensions: OverloadedStrings
+
+  -- dependencies constrained by the library
   build-depends:
     , base
     , OL-I-syntax
     , QuickCheck
-    , tasty
-    , tasty-quickcheck
+
+  -- test only dependencies
+  build-depends:
+    , tasty             ^>=1.2
+    , tasty-quickcheck  ^>=0.10

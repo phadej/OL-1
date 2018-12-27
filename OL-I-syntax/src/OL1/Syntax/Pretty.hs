@@ -3,6 +3,9 @@ module OL1.Syntax.Pretty (
     prettySyntax,
     ) where
 
+import Prelude ()
+import Prelude.Compat
+
 import qualified Data.Text.Short          as T
 import qualified Text.PrettyPrint.Compact as PP
 

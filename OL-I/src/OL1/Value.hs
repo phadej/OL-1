@@ -1,5 +1,8 @@
 module OL1.Value where
 
+import Prelude ()
+import Prelude.Compat
+
 import Bound.Class          (Bound (..))
 import Bound.Scope.Simple   (Scope (..), instantiate1, hoistScope)
 import Bound.ScopeH         (ScopeH (..), instantiate1H)

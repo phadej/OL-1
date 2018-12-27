@@ -20,6 +20,9 @@ module OL1.Pretty (
 
     ) where
 
+import Prelude ()
+import Prelude.Compat
+
 import Bound.Scope.Simple         (Scope (..))
 import Bound.ScopeH               (ScopeH (..))
 import Bound.ScopeT               (ScopeT (..))

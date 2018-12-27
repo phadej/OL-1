@@ -1,7 +1,10 @@
 module OL1.Expr where
 
+import Prelude ()
+import Prelude.Compat
+
 import Bound.ScopeH
-import Bound.Var (Var (..))
+import Bound.Var            (Var (..))
 import Control.Monad        (ap)
 import Control.Monad.Module (Module (..))
 import Data.Bifoldable      (Bifoldable (..))
