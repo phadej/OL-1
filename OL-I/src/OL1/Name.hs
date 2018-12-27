@@ -1,6 +1,7 @@
 module  OL1.Name where
 
-import Data.Text (Text)
+import Data.String (IsString (..))
+import Data.Text   (Text)
 
 import OL1.Pretty
 
@@ -13,3 +14,6 @@ instance Eq N where
 
 instance Pretty N where
     ppr (N n) = ppr n
+
+instance IsString N where
+    fromString = N . fromString

@@ -64,7 +64,6 @@ library
     OL1
     OL1.Check
     OL1.Error
-    OL1.Eval
     OL1.Expr
     OL1.Name
     OL1.Smart

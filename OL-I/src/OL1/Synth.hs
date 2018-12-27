@@ -14,6 +14,7 @@ import Control.Unification.Rigid
 import Data.Bifoldable           (bifoldMap)
 import Data.Bifunctor            (Bifunctor (..))
 import Data.Bitraversable        (bitraverse)
+import Data.String (fromString)
 import Data.Functor.Product      (Product (..))
 import Data.Traversable          (for)
 
@@ -136,7 +137,8 @@ generalise x0 t0 = first fromRight' $ fst $ foldr (uncurry . f) (x1, t1) (IS.toL
     f :: Int ->  Inf (Either MetaVar b) a -> Poly (Either MetaVar b)
              -> (Inf (Either MetaVar b) a,   Poly (Either MetaVar b))
     f v x t = (Ann x' t', t')  where
-        n = N "?"
+        n :: N
+        n = fromString $ "?" ++ show (v + minBound)
 
         x' = LamTy n $ abstractH abst $ Chk' $ unAnn x
 

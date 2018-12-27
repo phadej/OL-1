@@ -22,7 +22,7 @@ import OL1.Syntax.Parser     (parseSyntax)
 import OL1.Syntax.Pretty     (syntaxToString)
 import OL1.Syntax.Sugar      (desugar)
 import OL1.Syntax.Sym        (Sym)
--- import OL1.Syntax.ToSyntax   (runPrinter, toSyntax)
+import OL1.Syntax.ToSyntax   (runPrinter, toSyntax)
 
 main :: IO ()
 main = do
@@ -61,13 +61,13 @@ mkCase name = goldenVsStringDiff name diff output $ do
         tellString $ pretty expr1
 
         header "CHECKED"
-        (_val, ty) <- either (throwError . pretty) pure $ infer
+        (val, ty) <- either (throwError . pretty) pure $ infer
             ctx
             expr1
         tellString $ pretty ty
 
         header "EVALED"
-        -- tellString $ syntaxToString $ runPrinter $ toSyntax val
+        tellString $ syntaxToString $ runPrinter $ toSyntax val
 
   where
     input  = "fixtures" </> name -<.> "ol1"

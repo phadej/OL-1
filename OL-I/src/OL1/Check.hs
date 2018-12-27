@@ -78,7 +78,7 @@ rcheck ts ctx term t = case term of
             let ee = fromScopeH e
             ee' <- rcheck ts' (addContext a ctx) ee (Mono b)
             let e' = toScope ee'
-            return $ VLam n e'
+            return $ VLam n a e'
 
         _ -> Left $ LambdaNotArrow (ppr t) (ppr term) ts
     LamTy n e ->  case t of
@@ -86,7 +86,7 @@ rcheck ts ctx term t = case term of
             let ee = unChk' $ fromScopeH e
             let ss = fromScopeH s
             ee' <- rcheck ts' (addTyContext ctx) ee ss
-            let e' = toScopeH $ Intro' ee'
+            let e' = toScope $ Intro' ee'
             return $ VLamTy n e'
         _ -> Left $ PolyNotForall (ppr t) (ppr term) ts
   where

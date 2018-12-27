@@ -5,9 +5,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Bound.Class          (Bound (..))
-import Bound.Scope.Simple
-       (Scope, hoistScope, instantiate1)
-import Bound.ScopeH         (ScopeH, fromScopeH, instantiate1H, toScopeH)
+import Bound.Scope.Simple   (Scope (..), toScope, fromScope, hoistScope, instantiate1)
 import Bound.Var            (Var (..))
 import Control.Monad        (ap, void)
 import Control.Monad.Module (Module (..))
@@ -15,7 +13,9 @@ import Data.Bifoldable      (Bifoldable (..))
 import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Coerce          (coerce)
-import Data.Functor.Classes (Eq1 (..), eq1)
+import Data.Functor.Classes
+       (Eq1 (..), Show1 (..), Show2 (..), eq1, showsBinaryWith, showsPrec2,
+       showsUnaryWith)
 import Data.String          (IsString (..))
 
 import qualified Data.Text       as T
@@ -32,8 +32,8 @@ import OL1.Syntax.ToSyntax
 
 -- | 'Intro' has a normal deduction, \(A\!\uparrow\).
 data Intro b a
-    = VLam N (Scope N (Intro b) a)
-    | VLamTy N (ScopeH N (Intro' a) Mono b)
+    = VLam N (Mono b) (Scope N (Intro b) a)
+    | VLamTy N (Scope N (Intro' a) b)
     | VCoerce (Elim b a)
     | VErr Err
 
@@ -42,7 +42,7 @@ newtype Intro' a b = Intro' { unIntro' :: Intro b a }
 overIntro' :: (Intro b a -> Intro d c) -> Intro' a b -> Intro' c d
 overIntro' = coerce
 
--- | 'Elim' is extracted from a hypothesis, \(A\!\downarrow\).
+-- | '0 =lim' is extracted from a hypothesis, \(A\!\downarrow\).
 data Elim b a
     = VApp (Elim b a) (Intro b a)
     | VAppTy (Elim b a) (Mono b)
@@ -69,7 +69,7 @@ instance Pretty b => Monad (Intro b) where
     return = pure
 
     (>>=) :: forall a c. Intro b a -> (a -> Intro b c) -> Intro b c
-    VLam n b         >>= k = VLam n (b >>>= k)
+    VLam n t b       >>= k = VLam n t (b >>>= k)
     VCoerce u        >>= k = valueAppBind u k
     VErr err         >>= _ = VErr err
     VLamTy n b       >>= k = undefined n b k
@@ -97,13 +97,13 @@ instance Pretty b => Monad (Elim b) where
 
 valueBind :: Pretty b => Intro b a -> (a -> Elim b c) -> Intro b c
 valueBind (VCoerce e)  k = VCoerce (e >>= k)
-valueBind (VLam n b)   k = VLam n (b >>>= VCoerce . k)
+valueBind (VLam n t b) k = VLam n t (b >>>= VCoerce . k)
 valueBind (VErr err)   _ = VErr err
-valueBind (VLamTy n b) k = VLamTy n $ toScopeH
+valueBind (VLamTy n b) k = VLamTy n $ toScope
     $ Intro'
     $ flip valueBind (first F . k)
     $ unIntro'
-    $ fromScopeH b
+    $ fromScope b
 
 instance Module (Intro' a) Mono where
     Intro' i >>== k = Intro' (bindIntroMono i k)
@@ -111,9 +111,14 @@ instance Module (Intro' a) Mono where
 bindIntroMono :: Intro b a -> (b -> Mono c) -> Intro c a
 bindIntroMono (VErr err)   _ = VErr err
 bindIntroMono (VCoerce c)  k = VCoerce (bindElimMono c k)
-bindIntroMono (VLam n b)   k = VLam n $ hoistScope (`bindIntroMono` k) b
-bindIntroMono (VLamTy n b) k = VLamTy n $ b >>== k
- 
+bindIntroMono (VLam n t b) k = VLam n (t >>= k) $ hoistScope (`bindIntroMono` k) b
+
+bindIntroMono (VLamTy n (Scope (Intro' b))) k = VLamTy n $ Scope $ Intro' $
+    bindIntroMono b $ \v -> case v of
+        B x -> return (B x)
+        F y -> fmap F (k y)
+        
+
 bindElimMono :: Elim b a -> (b -> Mono c) -> Elim c a
 bindElimMono (VVar x)     _ = VVar x
 bindElimMono (VApp f x)   k = VApp (bindElimMono f k) (bindIntroMono x k)
@@ -149,10 +154,10 @@ valueApp
     => Intro b a  -- ^ f : a -> b
     -> Intro b a  -- ^ x : a
     -> Intro b a  -- ^ _ : b
-valueApp (VCoerce f) x = VCoerce (VApp f x)
-valueApp (VErr err)  _ = VErr err
-valueApp (VLam _ b)  x = instantiate1 x b
-valueApp f           _ = VErr (ApplyPanic (ppr (void f)))
+valueApp (VCoerce f)  x = VCoerce (VApp f x)
+valueApp (VErr err)   _ = VErr err
+valueApp (VLam _ _ b) x = instantiate1 x b
+valueApp f            _ = VErr (ApplyPanic (ppr (void f)))
 
 valueAppTy
     :: Pretty b
@@ -161,8 +166,17 @@ valueAppTy
     -> Intro b a
 valueAppTy (VCoerce x)  t = VCoerce (VAppTy x t)
 valueAppTy (VErr err)   _ = VErr err
-valueAppTy (VLamTy _ b) t = unIntro' $ instantiate1H t b
+valueAppTy (VLamTy _ b) t = instantiate1Mono t b
 valueAppTy f            _ = VErr (ApplyPanic (ppr (void f)))
+
+-------------------------------------------------------------------------------
+-- Instantiation of mono types
+-------------------------------------------------------------------------------
+
+instantiate1Mono :: Mono b -> Scope n (Intro' a) b -> Intro b a
+instantiate1Mono t (Scope (Intro' s)) = bindIntroMono s k where
+    k (B _) = t
+    k (F y) = return y
 
 -------------------------------------------------------------------------------
 -- Eq
@@ -170,10 +184,10 @@ valueAppTy f            _ = VErr (ApplyPanic (ppr (void f)))
 
 instance Eq b => Eq1 (Intro b) where
     liftEq eq (VCoerce x)  (VCoerce x')  = liftEq eq x x'
-    liftEq eq (VLam _ x)   (VLam _  x')  = liftEq eq x x'
+    liftEq eq (VLam _ t x)   (VLam _ t' x') = liftEq eq x x' && t == t'
     liftEq eq (VLamTy _ b) (VLamTy _ b') = liftEq eq
-        (unIntro' $ fromScopeH b)
-        (unIntro' $ fromScopeH b')
+        (unIntro' $ fromScope b)
+        (unIntro' $ fromScope b')
 
     -- Errors are inequal
     liftEq _  (VErr _) (VErr _) = False
@@ -198,6 +212,48 @@ instance (Eq a, Eq b) => Eq (Intro b a) where (==) = eq1
 instance (Eq a, Eq b) => Eq (Elim b a) where (==) = eq1
 
 -------------------------------------------------------------------------------
+-- Show
+-------------------------------------------------------------------------------
+
+instance Show2 Intro where
+    liftShowsPrec2 _sp _sl _zp _zl d (VErr err) = showsUnaryWith
+        showsPrec
+        "VErr" d err
+    liftShowsPrec2 sp sl zp zl d (VCoerce x) = showsUnaryWith
+        (liftShowsPrec2 sp sl zp zl)
+        "VCoerce" d x
+    -- TODO: type
+    liftShowsPrec2 sp sl zp zl d (VLam x _ (Scope y)) = showsBinaryWith
+        showsPrec
+        (liftShowsPrec2 sp sl (liftShowsPrec zp zl) (liftShowList zp zl))
+        "VLam" d x y
+    liftShowsPrec2 sp sl zp zl d (VLamTy x (Scope y)) = showsBinaryWith
+        showsPrec
+        (liftShowsPrec2 zp zl (liftShowsPrec sp sl) (liftShowList sp sl))
+        "VLamTy" d x y
+
+instance Show2 Intro' where
+    liftShowsPrec2 sp sl zp zl d (Intro' x) = showParen (d >= 10)
+        $ liftShowsPrec2 zp zl sp sl 11 x
+
+instance Show2 Elim where
+    liftShowsPrec2 _sp _sl zp _zl d (VVar x) = showsUnaryWith
+        zp
+        "VVar" d x
+    liftShowsPrec2 sp sl zp zl d (VApp x y) = showsBinaryWith
+        (liftShowsPrec2 sp sl zp zl)
+        (liftShowsPrec2 sp sl zp zl)
+        "VApp" d x y
+    liftShowsPrec2 sp sl zp zl d (VAppTy x y) = showsBinaryWith
+        (liftShowsPrec2 sp sl zp zl)
+        (liftShowsPrec sp sl)
+        "VAppTy" d x y
+
+instance (Show a, Show b) => Show (Intro a b)  where showsPrec = showsPrec2
+instance (Show a, Show b) => Show (Intro' a b) where showsPrec = showsPrec2
+instance (Show a, Show b) => Show (Elim a b)   where showsPrec = showsPrec2
+    
+-------------------------------------------------------------------------------
 -- Pretty instances
 -------------------------------------------------------------------------------
 
@@ -212,10 +268,10 @@ instance (Pretty a, Pretty b) => Pretty (Elim b a)  where ppr = ppr1
 
 pprIntro :: Intro Doc Doc -> MDoc
 pprIntro (VErr err)      = ppr err
-pprIntro (VLam n b)      = pprScopedC n $ \n' ->
+pprIntro (VLam n _ b)      = pprScopedC n $ \n' ->
     sexpr (pprText "fn") [ return n', pprIntro $ instantiate1 (return n') b ]
-pprIntro (VLamTy n b)    = pprScopedC n $ \n' ->
-    sexpr (pprText "poly") [ return n', pprIntro $ unIntro' $ instantiate1H (return n') b ]
+pprIntro (VLamTy n b)  = pprScopedC n $ \n' ->
+     sexpr (pprText "poly") [ return n', pprIntro $ instantiate1Mono (return n') b ]
 pprIntro (VCoerce x)     = pprElim x
 
 pprElim :: Elim Doc Doc -> MDoc
@@ -231,17 +287,17 @@ instance (a ~ Sym, b ~ Sym) => ToSyntax (Intro a b) where
     toSyntax = toSyntax'
 
 toSyntax' :: Intro Sym Sym -> SyntaxM
-toSyntax' (VErr _err) = error "some error!"
-toSyntax' (VCoerce x) = toSyntax x
-toSyntax' (VLam n b)  = freshen (nToSym n) $ \s ->
+toSyntax' (VErr _err)  = error "some error!"
+toSyntax' (VCoerce x)  = toSyntax x
+toSyntax' (VLam n t b) = freshen (nToSym n) $ \s ->
     srlist RFn
-        [ toSyntax $ instantiate1 (return s) b
+        [ srlist RThe [ toSyntax t, toSyntax s ]
+        , toSyntax $ instantiate1 (return s) b
         ]
-toSyntax' (VLamTy n b)  = freshen (nToSym n) $ \s ->
+toSyntax' (VLamTy n b) = freshen (nToSym n) $ \s ->
     srlist' RFn
         [ At <$> toSyntax s
-        , At <$> toSyntax s
-         , fmap At $ toSyntax $ unIntro' $ instantiate1H (return (Sym "foo")) b
+        , fmap At $ toSyntax $ instantiate1Mono (return s) b
         ]
 
 instance (a ~ Sym, b ~ Sym) => ToSyntax (Elim a b) where

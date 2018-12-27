@@ -5,7 +5,8 @@ import Bound.ScopeH              (ScopeH, abstractH, instantiate1H)
 import Control.Monad             (ap)
 import Control.Monad.Module      (Module (..))
 import Control.Unification.Rigid (Unifiable (..))
-import Data.Functor.Classes      (Eq1 (..), eq1)
+import Data.Functor.Classes
+       (Eq1 (..), Show1 (..), eq1, showsBinaryWith, showsPrec1, showsUnaryWith)
 import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
 import Data.String               (IsString (..))
 import Data.Text                 (Text)
@@ -19,6 +20,9 @@ data Mono a
     | Mono a :-> Mono a
     -- TODO: Record
   deriving (Functor, Foldable, Traversable)
+
+infixr 0 :->
+infixr 0 :=>
 
 data Poly a
     = Mono (Mono a)
@@ -61,6 +65,31 @@ instance Eq1 Poly where
 
 instance Eq a => Eq (Mono a) where (==) = eq1
 instance Eq a => Eq (Poly a) where (==) = eq1
+
+-------------------------------------------------------------------------------
+-- Show
+-------------------------------------------------------------------------------
+
+instance Show1 Mono where
+    liftShowsPrec sp _ d (T x) = showsUnaryWith
+        sp
+        "T" d x
+    liftShowsPrec sp sl d (a :-> b) = showParen (d > 0)
+        $ liftShowsPrec sp sl 1 a
+        . showString " :-> "
+        . liftShowsPrec sp sl 0 b
+
+instance Show1 Poly where
+    liftShowsPrec sp sl d (Mono x) = showsUnaryWith
+        (liftShowsPrec sp sl)
+        "Mono" d x
+    liftShowsPrec sp sl d (Forall x y) = showsBinaryWith
+        showsPrec
+        (liftShowsPrec sp sl)
+        "Forall" d x y
+
+instance Show a => Show (Mono a) where showsPrec = showsPrec1
+instance Show a => Show (Poly a) where showsPrec = showsPrec1
 
 -------------------------------------------------------------------------------
 -- MonoF
