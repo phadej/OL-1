@@ -22,16 +22,16 @@ import OL1.Syntax.Type
 -- Types
 -------------------------------------------------------------------------------
 
-type SyntaxM = ToSyntaxM Syntax
+type SyntaxM = Printer Syntax
 
 -- | State of pretty-printer's "used" symbols
 type S = Set.Set U
 
-newtype ToSyntaxM a = ToSyntaxM { unToSyntaxM :: State S a }
+newtype Printer a = Printer { unPrinter :: State S a }
   deriving newtype (Functor, Applicative, Monad)
 
-runToSyntaxM :: ToSyntaxM a -> a
-runToSyntaxM (ToSyntaxM m) = evalState m Set.empty
+runPrinter :: Printer a -> a
+runPrinter (Printer m) = evalState m Set.empty
 
 -------------------------------------------------------------------------------
 -- Classes
@@ -52,7 +52,7 @@ instance ToSyntax ISym where
 instance ToSyntax Syntax where
     toSyntax = return
 
-instance ToSyntax a => ToSyntax (ToSyntaxM a) where
+instance ToSyntax a => ToSyntax (Printer a) where
     toSyntax = (>>= toSyntax)
 
 toSyntax1 :: (ToSyntax1 f, ToSyntax a) => f a -> SyntaxM
@@ -63,12 +63,12 @@ toSyntax1 = liftToSyntax toSyntax
 -------------------------------------------------------------------------------
 
 -- | Make fresh symbol variant.
-freshen :: Sym -> (Sym -> ToSyntaxM a) -> ToSyntaxM a
-freshen (Sym s) f = ToSyntaxM $ do
+freshen :: Sym -> (Sym -> Printer a) -> Printer a
+freshen (Sym s) f = Printer $ do
     xs <- get
     let u = freshU xs (genU (toU s))
     put (Set.insert u xs)
-    x <- unToSyntaxM (f (fromString (fromU u)))
+    x <- unPrinter (f (fromString (fromU u)))
     modify' (Set.delete u)
     return x
 
