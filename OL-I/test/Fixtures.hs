@@ -15,14 +15,8 @@ import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import qualified Data.ByteString.UTF8       as UTF8
 
-import OL1 hiding ((</>))
-
-import OL1.Syntax.FromSyntax (fromSyntax, runParser)
-import OL1.Syntax.Parser     (parseSyntax)
-import OL1.Syntax.Pretty     (syntaxToString)
-import OL1.Syntax.Sugar      (desugar)
-import OL1.Syntax.Sym        (Sym)
-import OL1.Syntax.ToSyntax   (runPrinter, toSyntax)
+import OL1        hiding ((</>))
+import OL1.Syntax
 
 main :: IO ()
 main = do
