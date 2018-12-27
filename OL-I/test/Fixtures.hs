@@ -1,10 +1,13 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main (main) where
 
--- import OL1 hiding ((</>))
-import OL1.Syntax.Parser (parseSyntax)
-import OL1.Syntax.Pretty (syntaxToString)
-import OL1.Syntax.Sugar  (desugar)
+import OL1 hiding ((</>))
+
+import OL1.Syntax.FromSyntax (eitherFromSyntax)
+import OL1.Syntax.Parser     (parseSyntax)
+import OL1.Syntax.Pretty     (syntaxToString)
+import OL1.Syntax.Sugar      (desugar)
+import OL1.Syntax.Sym        (Sym)
 
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Writer (Writer, execWriter, tell)
@@ -38,17 +41,23 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
         header "PARSED"
         s0 <- either throwError pure $ parseSyntax input contents
-        tell [ UTF8.fromString $ syntaxToString s0, BS.empty ]
+        tellString $ syntaxToString s0
 
         header "DESUGARED"
         let s1 = desugar s0
-        tell [ UTF8.fromString $ syntaxToString s1, BS.empty ]
+        tellString $ syntaxToString s1
 
+        header "FROMSYNTAX"
+        expr <- either throwError pure $ eitherFromSyntax s1 :: M (Either (Chk Sym Sym) (Inf Sym Sym))
+        tellString $ pretty expr
   where
     input  = "fixtures" </> name -<.> "ol1"
     output = "fixtures" </> name -<.> "out"
 
-    runE :: ExceptT String (Writer [BS.ByteString]) () -> Writer [BS.ByteString] ()
+    tellString :: String -> M ()
+    tellString s = tell [ UTF8.fromString s, BS.empty ]
+
+    runE :: M () -> Writer [BS.ByteString] ()
     runE m = do
         x <- runExceptT m
         case x of
@@ -58,9 +67,11 @@ mkCase name = goldenVsStringDiff name diff output $ do
                 , UTF8.fromString err
                 ]
 
-    header :: String -> ExceptT String (Writer [BS.ByteString]) ()
+    header :: String -> M ()
     header n = tell
         [ UTF8.fromString $ "=== " ++ n ++ " " ++ replicate (72 - length n) '='
         ]
 
     diff ref new = ["diff", "-u", ref, new]
+
+type M = ExceptT String (Writer [BS.ByteString])

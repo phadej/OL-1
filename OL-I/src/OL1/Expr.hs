@@ -19,6 +19,7 @@ import OL1.Name
 import OL1.Pretty
 import OL1.Smart
 import OL1.Type
+import OL1.Syntax.FromSyntax
 
 -- | 'Inf'-errable terms
 data Inf (b :: Type) (a :: Type)
@@ -219,6 +220,15 @@ pprChk (Lam n b)   = pprScopedC n $ \n' ->
 pprChk (LamTy n b) = pprScopedC n $ \n' ->
     sexpr (pprText "poly") [ return n', pprChk $ unChk' $ instantiate1H (return n') b ]
 
+-------------------------------------------------------------------------------
+-- FromSyntax
+-------------------------------------------------------------------------------
+
+instance (FromSyntax b, FromSyntax a) => FromSyntax (Inf b a) where
+    fromSyntax _ = failure "not implemented"
+
+instance (FromSyntax b, FromSyntax a) => FromSyntax (Chk b a) where
+    fromSyntax _ = failure "not implemented"
 
 -------------------------------------------------------------------------------
 -- Smart

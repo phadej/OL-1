@@ -39,7 +39,10 @@ import Debug.Trace                (trace)
 
 import qualified Data.Set                 as Set
 import qualified Data.Text                as T
+import qualified Data.Text.Short          as TS
 import qualified Text.PrettyPrint.Compact as PP
+
+import OL1.Syntax.Sym
 
 -------------------------------------------------------------------------------
 -- Aliases
@@ -265,3 +268,10 @@ instance Pretty1 t => Pretty1 (UTerm t) where
         go (UTerm t) = liftPpr go t
 
 instance (Pretty1 t, Pretty a) => Pretty (UTerm t a) where ppr = ppr1
+
+-------------------------------------------------------------------------------
+-- OL1.Syntax
+-------------------------------------------------------------------------------
+
+instance Pretty Sym where
+    ppr (Sym s) = pprText (TS.unpack s)
