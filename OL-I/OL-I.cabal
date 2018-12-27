@@ -57,6 +57,9 @@ library
     , recursion-schemes  ^>=5.1
     , unification-rigid  ^>=0
 
+  -- tmp
+  build-depends: text-short
+
   exposed-modules:
     OL1
     OL1.Check

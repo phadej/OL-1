@@ -1,9 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
 module Main (main) where
 
 import OL1 hiding ((</>))
 
-import OL1.Syntax.FromSyntax (eitherFromSyntax)
+import OL1.Syntax.FromSyntax (runParser, fromSyntax)
 import OL1.Syntax.Parser     (parseSyntax)
 import OL1.Syntax.Pretty     (syntaxToString)
 import OL1.Syntax.Sugar      (desugar)
@@ -48,8 +47,9 @@ mkCase name = goldenVsStringDiff name diff output $ do
         tellString $ syntaxToString s1
 
         header "FROMSYNTAX"
-        expr <- either throwError pure $ eitherFromSyntax s1 :: M (Either (Chk Sym Sym) (Inf Sym Sym))
+        expr <- either throwError pure $ runParser (fromSyntax s1) :: M (Chk Sym Sym)
         tellString $ pretty expr
+
   where
     input  = "fixtures" </> name -<.> "ol1"
     output = "fixtures" </> name -<.> "out"

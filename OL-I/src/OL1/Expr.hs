@@ -18,8 +18,13 @@ import Data.String          (IsString (..))
 import OL1.Name
 import OL1.Pretty
 import OL1.Smart
-import OL1.Type
+import OL1.Syntax
 import OL1.Syntax.FromSyntax
+import OL1.Syntax.Sym
+import OL1.Type
+
+import qualified Data.Text       as T
+import qualified Data.Text.Short as TS
 
 -- | 'Inf'-errable terms
 data Inf (b :: Type) (a :: Type)
@@ -224,11 +229,31 @@ pprChk (LamTy n b) = pprScopedC n $ \n' ->
 -- FromSyntax
 -------------------------------------------------------------------------------
 
-instance (FromSyntax b, FromSyntax a) => FromSyntax (Inf b a) where
-    fromSyntax _ = failure "not implemented"
+-- | TODO the context
+instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
+    fromSyntax (SSym s)         = return (V s)
+    fromSyntax (SList f [At x]) = App <$> fromSyntax f <*> fromSyntax x
 
-instance (FromSyntax b, FromSyntax a) => FromSyntax (Chk b a) where
-    fromSyntax _ = failure "not implemented"
+    fromSyntax s = failure $ "not inf: " ++ syntaxToString s
+
+-- | TODO the context
+instance (a ~ Sym, b ~ Sym) => FromSyntax (Chk b a) where
+    -- fn
+    fromSyntax (SRList RFn [Juxta (SList (SSym s) []), Juxta body]) = lam s <$> fromSyntax body
+    fromSyntax (SRList RFn xs) = failure $ "invalid fn args: " ++ show xs
+
+    fromSyntax s = Inf <$> fromSyntax s
+
+lam :: Sym -> Chk Sym Sym -> Chk Sym Sym
+lam x b = Lam s $ abstractHEither k b
+  where
+    s = symToN x
+
+    k n | n == x    = Left s
+        | otherwise = Right n
+
+symToN :: Sym -> N
+symToN (Sym s) = N (T.pack (TS.unpack s))
 
 -------------------------------------------------------------------------------
 -- Smart

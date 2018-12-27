@@ -2,7 +2,9 @@ module OL1.Syntax (
     -- * Types
     Sym,
     ISym,
+    Reserved (..),
     Syntax (..),
+    AppSyntax (..),
     -- * Parsing
     syntaxFromString,
     parseSyntax,
@@ -14,5 +16,6 @@ module OL1.Syntax (
 
 import OL1.Syntax.Parser
 import OL1.Syntax.Pretty
+import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 import OL1.Syntax.Type
