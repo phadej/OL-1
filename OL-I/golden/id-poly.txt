@@ -1,3 +1,0 @@
-(the (forall a (-> a a)) (poly a (fn x x)))
-[]
-(triple (the (forall a (-> a a)) (poly a (fn x x))) (forall a (-> a a)) [])

@@ -1,5 +1,0 @@
-(id id)
-[(pair id (forall a (-> a a)))]
-(triple (the (forall ? (-> ? ?)) (poly ? (id @(-> ? ?) (id @?))))
-        (forall ? (-> ? ?))
-        [])

@@ -1,3 +1,0 @@
-(x x)
-[]
-error: Occurs check, cannot construct infinite type ?1  ~  (-> ?1 ?2)

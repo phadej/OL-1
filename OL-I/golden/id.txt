@@ -1,3 +1,0 @@
-(the ? (fn x x))
-[]
-(triple (the (forall ? (-> ? ?)) (poly ? (fn x x))) (forall ? (-> ? ?)) [])

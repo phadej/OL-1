@@ -1,3 +1,0 @@
-(f x)
-[(pair f (-> A B)) (pair x C)]
-error: Couldn't match expected type A with actual type C

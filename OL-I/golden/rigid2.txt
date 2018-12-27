@@ -1,3 +1,0 @@
-(the (forall a (-> a a)) (poly x f))
-[(pair f (-> A A))]
-error: Couldn't match type A with actual rigid type a

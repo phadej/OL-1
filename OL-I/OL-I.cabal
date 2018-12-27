@@ -67,23 +67,6 @@ library
     OL1.Type
     OL1.Value
 
-test-suite golden
-  default-language:   Haskell2010
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     test
-  main-is:            Golden.hs
-  default-extensions: OverloadedStrings
-  build-depends:
-    , base
-    , containers
-    , filepath
-    , OL-I
-    , pretty-compact
-    , tasty
-    , tasty-golden
-    , text
-    , utf8-string
-
 test-suite fixtures
   type:               exitcode-stdio-1.0
   default-language:   Haskell2010

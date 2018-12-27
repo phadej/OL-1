@@ -1,3 +1,0 @@
-(the (forall a (-> a a)) (poly x f))
-[]
-error: Rigid variable a escaping its scope
