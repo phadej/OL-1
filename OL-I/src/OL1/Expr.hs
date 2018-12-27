@@ -189,8 +189,14 @@ instance (Eq b, Eq a) => Eq (Chk b a) where (==) = eq1
 
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
     fromSyntax (SSym s)           = return (V s)
-    fromSyntax (SList [f, SAt x])   = AppTy <$> fromSyntax f <*> fromSyntax x
-    fromSyntax (SList [f, x])       = App <$> fromSyntax f <*> fromSyntax x
+    fromSyntax (SList (f : xs))   = fromSyntax f >>= \f' -> go f' xs where
+        go g [] = return g
+        go g (SAt y : ys) = do
+            y' <- fromSyntax y
+            go (AppTy g y') ys
+        go g (y : ys) = do
+            y' <- fromSyntax y
+            go (App g y') ys
     fromSyntax (SRList RThe [t, x]) =
         Ann <$> fromSyntax x <*> fromSyntax t
 

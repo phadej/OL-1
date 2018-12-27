@@ -1,0 +1,3 @@
+(postulate f (-> A B))
+(postulate x C)
+(f x)

@@ -51,15 +51,13 @@ library
     , base-compat        ^>=0.10.5
     , bound              ^>=2.0.1
     , bound-extras       ^>=0
-    , lens               ^>=4.17
     , OL-I-syntax        ^>=1
     , pretty-compact     ^>=3.0
     , recursion-schemes  ^>=5.1
     , unification-rigid  ^>=0
 
   -- tmp
-  build-depends: text-short
-
+  build-depends:      text-short
   exposed-modules:
     OL1
     OL1.Check
@@ -81,9 +79,9 @@ test-suite golden
     , filepath
     , OL-I
     , pretty-compact
-    , text
     , tasty
     , tasty-golden
+    , text
     , utf8-string
 
 test-suite fixtures
@@ -94,6 +92,7 @@ test-suite fixtures
   default-extensions: OverloadedStrings
   build-depends:
     , base
+    , bound-extras
     , containers
     , mtl
     , OL-I
@@ -108,6 +107,7 @@ test-suite fixtures
 
   -- test only dependencies
   build-depends:
+    , lens          ^>=4.17
     , tasty         ^>=1.2
     , tasty-golden  ^>=2.3.2
     , utf8-string   ^>=1.0.1.1

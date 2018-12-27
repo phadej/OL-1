@@ -1,1 +1,3 @@
-((the (-> A B) (fn (y) (f y)) ) x)
+(postulate f (-> A B))
+(postulate x A)
+((the (-> A B) (fn (y) (f y))) x)

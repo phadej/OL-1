@@ -1,0 +1,4 @@
+(postulate f (-> A A))
+(the
+  (-> @A A A)
+  (fn (@A) f))
