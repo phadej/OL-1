@@ -20,9 +20,9 @@ import Data.Traversable          (for)
 
 import OL1.Error
 import OL1.Expr
-import OL1.Name
 import OL1.Pretty
 import OL1.Type
+import OL1.Syntax
 
 import qualified Data.IntSet     as IS
 import qualified Data.Map.Strict as Map
@@ -31,7 +31,7 @@ import qualified Data.Map.Strict as Map
 -- Type aliases
 -------------------------------------------------------------------------------
 
-type Unify' b v = Unify N Err (MonoF b) v
+type Unify' b v = Unify ISym Err (MonoF b) v
 type U b v = UTerm (MonoF b) v
 
 -------------------------------------------------------------------------------
@@ -137,7 +137,7 @@ generalise x0 t0 = first fromRight' $ fst $ foldr (uncurry . f) (x1, t1) (IS.toL
     f :: Int ->  Inf (Either MetaVar b) a -> Poly (Either MetaVar b)
              -> (Inf (Either MetaVar b) a,   Poly (Either MetaVar b))
     f v x t = (Ann x' t', t')  where
-        n :: N
+        n :: ISym
         n = fromString $ "?" ++ show (v + minBound)
 
         x' = LamTy n $ abstractH abst $ Chk' $ unAnn x
@@ -159,7 +159,7 @@ wrap :: U b v -> Poly (U b v)
 wrap = Mono . T
 
 synInfer
-    :: (RigidVariable N v, Eq b, Pretty a, Pretty b, Pretty v)
+    :: (RigidVariable ISym v, Eq b, Pretty a, Pretty b, Pretty v)
     => [MDoc]
     -> Inf (U b v) (Poly (U b v), a)  -- ^ terms with meta leaves
     -> Unify' b v (Inf (U b v) a, Poly (U b v))
@@ -181,7 +181,7 @@ synInfer ts term = case term of
     ts'     = pprTerm : ts
 
 sysInferApp
-    :: (Eq b, Pretty a, Pretty b, Pretty v, RigidVariable N v)
+    :: (Eq b, Pretty a, Pretty b, Pretty v, RigidVariable ISym v)
     => [MDoc]
     -> Inf (U b v) a
     -> Poly (U b v)
@@ -210,7 +210,7 @@ sysInferApp ts' f ab x = case ab of
 type InfPoly a u = Product (Inf' a) Poly u
 
 unifyPoly
-    :: forall b a v. (RigidVariable N v, Eq b, Pretty b, Pretty v)
+    :: forall b a v. (RigidVariable ISym v, Eq b, Pretty b, Pretty v)
     => Inf (U b v) a
     -> Poly (U b v) -- inferred
     -> Poly (U b v) -- actual
@@ -249,7 +249,7 @@ unifyPoly _ a@Mono {} b@Forall {} = throwError $ TypeMismatch
     (ppr a) (ppr b) (pprText "?") []
 
 synCheck
-    :: forall a b v. (Eq b, Pretty a, Pretty b, RigidVariable N v, Pretty v)
+    :: forall a b v. (Eq b, Pretty a, Pretty b, RigidVariable ISym v, Pretty v)
     => [MDoc]
     -> Chk (U b v) (Poly (U b v), a)
     -> Poly (U b v)
@@ -264,14 +264,14 @@ synCheck ts term ty = case term of
             a <- UVar <$> freeVar
             b <- UVar <$> freeVar
             _ <- unify ab (UTerm (a :=> b))
-            let inst :: Either N (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either N a)
+            let inst :: Either ISym (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either ISym a)
                 inst (Left y)         = V (Mono $ T a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
             (e'', _) <- synCheck ts' e' (Mono (T b))
             pure (Lam n $ abstractHEither id e'', ty)
         Mono (a :-> b) -> do
-            let inst :: Either N (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either N a)
+            let inst :: Either ISym (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either ISym a)
                 inst (Left y)         = V (Mono a, Left y)
                 inst (Right (ty', x)) = V (ty', Right x)
             let e' = instantiateHEither inst e
@@ -295,11 +295,11 @@ synCheck ts term ty = case term of
     pprTerm = ppr' term
     ts'     = pprTerm : ts
 
-comm :: Var N (U b v) -> U b (Either N v)
+comm :: Var ISym (U b v) -> U b (Either ISym v)
 comm (B n) = UVar (Left n)
 comm (F u) = fmap Right u
 
-uncomm :: Either (Either N v) b -> Var N (U b v)
+uncomm :: Either (Either ISym v) b -> Var ISym (U b v)
 uncomm (Right b) = F (UTerm (TF b))
 uncomm (Left (Left n')) = B n'
 uncomm (Left (Right v)) = F (UVar v)

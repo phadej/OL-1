@@ -35,7 +35,7 @@ instance QC.Arbitrary Sym where
             ]
 
 -- | Irrelevant symbol, are all equal
-newtype ISym = ISym ShortText
+newtype ISym = ISym Sym 
   deriving (Show)
 
 instance IsString ISym where

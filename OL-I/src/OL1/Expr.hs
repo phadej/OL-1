@@ -15,16 +15,11 @@ import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.Kind            (Type)
 import Data.String          (IsString (..))
 
-import OL1.Name
 import OL1.Pretty
-import OL1.Smart
 import OL1.Syntax
 import OL1.Syntax.FromSyntax
 import OL1.Syntax.Sym
 import OL1.Type
-
-import qualified Data.Text       as T
-import qualified Data.Text.Short as TS
 
 -- | 'Inf'-errable terms
 data Inf (b :: Type) (a :: Type)
@@ -43,9 +38,9 @@ data Chk (b :: Type) (a :: Type)
     -- Inferrable term
     = Inf (Inf b a)
     -- Function spaces
-    | Lam N (ScopeH N (Chk b) (Inf b) a)
+    | Lam ISym(ScopeH ISym(Chk b) (Inf b) a)
     -- Polymorphism
-    | LamTy N (ScopeH N (Chk' a) Mono b)
+    | LamTy ISym(ScopeH ISym(Chk' a) Mono b)
     -- TODO: Record
 
 newtype Inf' a b = Inf' { unInf' :: Inf b a }
@@ -95,7 +90,7 @@ instance Module (Chk b) (Inf b) where
     Inf i     >>== k = Inf (i >>= k)
     Lam n b   >>== k = Lam n (b >>== k)
     LamTy n b >>== k = LamTy n $ (overScopeH . overChk') (>>== k') b where
-        k' :: a -> Inf (Var N (Mono b)) c
+        k' :: a -> Inf (Var ISym(Mono b)) c
         k' = first (return . return) . k
 
 overScopeH
@@ -220,9 +215,9 @@ pprInf (Ann e b)   = sexpr (pprText "the") [pprPoly b, pprChk e]
 
 pprChk :: Chk Doc Doc -> MDoc
 pprChk (Inf i)     = pprInf i
-pprChk (Lam n b)   = pprScopedC n $ \n' ->
+pprChk (Lam n b)   = pprScoped (isymToText n) $ \n' ->
     sexpr (pprText "fn") [ return n', pprChk $ instantiate1H (return n') b ]
-pprChk (LamTy n b) = pprScopedC n $ \n' ->
+pprChk (LamTy n b) = pprScoped (isymToText n) $ \n' ->
     sexpr (pprText "poly") [ return n', pprChk $ unChk' $ instantiate1H (return n') b ]
 
 -------------------------------------------------------------------------------
@@ -249,13 +244,10 @@ instance (a ~ Sym, b ~ Sym) => FromSyntax (Chk b a) where
 lam :: Sym -> Chk Sym Sym -> Chk Sym Sym
 lam x b = Lam s $ abstractHEither k b
   where
-    s = symToN x
+    s = ISym x
 
     k n | n == x    = Left s
         | otherwise = Right n
-
-symToN :: Sym -> N
-symToN (Sym s) = N (T.pack (TS.unpack s))
 
 -------------------------------------------------------------------------------
 -- Smart
@@ -264,17 +256,3 @@ symToN (Sym s) = N (T.pack (TS.unpack s))
 instance IsString a => IsString (Inf b a) where fromString = V . fromString
 instance IsString a => IsString (Chk b a) where fromString = Inf . fromString
 
-instance SLam Chk where
-    lam_ x b = Lam (N x) $ abstractHEither k b where
-        k n | n == x    = Left (N n)
-            | otherwise = Right n
-
-    poly_ t x = LamTy (N t) $ abstractHEither k (Chk' x) where
-        k n | n == t    = Left (N n)
-            | otherwise = Right n
-
-instance SApp Inf Chk Inf where ($$) = App
-instance SApp Inf Chk Chk where f $$ x = Inf (f $$ x)
-
-instance SAppTy Inf Inf where (@@) = AppTy
-instance SAppTy Inf Chk where x @@ t =  Inf (x @@ t)

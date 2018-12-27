@@ -6,7 +6,6 @@ import Bound.Var          (Var (..))
 
 import OL1.Error
 import OL1.Expr
-import OL1.Name
 import OL1.Pretty
 import OL1.Type
 import OL1.Value
@@ -95,12 +94,12 @@ rcheck ts ctx term t = case term of
 addContext
     :: Mono b                  -- ^ x
     -> (a -> Maybe (Poly b))   -- ^ context
-    -> Var N a
+    -> Var n a
     -> Maybe (Poly b)
 addContext x _ (B _) = Just (Mono x)
 addContext _ f (F x) = f x
 
 addTyContext
     :: (a -> Maybe (Poly b))   -- ^ context
-    -> a -> Maybe (Poly (Var N b))
+    -> a -> Maybe (Poly (Var n b))
 addTyContext ctx a = fmap (fmap F) $ ctx a

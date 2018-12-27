@@ -44,7 +44,7 @@ instance ToSyntax Sym where
     toSyntax = return . SSym
 
 instance ToSyntax ISym where
-    toSyntax (ISym s) = return (SSym (Sym s))
+    toSyntax (ISym s) = return (SSym s)
 
 instance ToSyntax Syntax where
     toSyntax = return

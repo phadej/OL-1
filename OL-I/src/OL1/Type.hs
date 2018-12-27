@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OL1.Type where
 
-import Bound.ScopeH              (ScopeH, abstractH, instantiate1H)
+import Bound.ScopeH              (ScopeH, instantiate1H)
 import Control.Monad             (ap)
 import Control.Monad.Module      (Module (..))
 import Control.Unification.Rigid (Unifiable (..))
@@ -11,9 +11,12 @@ import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
 import Data.String               (IsString (..))
 import Data.Text                 (Text)
 
-import OL1.Name
+import qualified Data.Text       as T
+import qualified Data.Text.Short as TS
+
 import OL1.Pretty
 import OL1.Syntax
+import OL1.Syntax.Sym
 
 data Mono a
     = T a
@@ -26,7 +29,7 @@ infixr 0 :=>
 
 data Poly a
     = Mono (Mono a)
-    | Forall N (ScopeH N Poly Mono a)
+    | Forall ISym (ScopeH ISym Poly Mono a)
   deriving (Functor, Foldable, Traversable)
 
 instance IsString a => IsString (Mono a) where
@@ -140,11 +143,14 @@ pprMono x = case peelArrow x of
 
 pprPoly :: Poly Doc -> MDoc
 pprPoly (Mono d)     = liftPpr return d
-pprPoly (Forall n t) = pprScopedC n $ \n' ->
+pprPoly (Forall n t) = pprScoped (isymToText n) $ \n' ->
     sexpr "forall" [ return n', pprPoly $ instantiate1H (return n') t ]
 
 instance Pretty a => Pretty (Mono a) where ppr = ppr1
 instance Pretty a => Pretty (Poly a) where ppr = ppr1
+
+isymToText :: ISym -> Text
+isymToText (ISym (Sym s)) = T.pack $ TS.unpack s
 
 -------------------------------------------------------------------------------
 -- ToSyntax
@@ -169,14 +175,6 @@ instance FromSyntax a => FromSyntax (Poly a) where
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
-
-class Forall t where
-    forall_ :: Text -> t Text -> Poly Text
-
-instance Forall Mono where
-    forall_ v t = Forall (N v) $ abstractH abst (Mono t) where
-        abst v' | v == v'   = Just (N v)
-                | otherwise = Nothing
 
 peelArrow :: Mono a -> ([Mono a], a)
 peelArrow (T a) = ([], a)

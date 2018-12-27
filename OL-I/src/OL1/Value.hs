@@ -18,22 +18,17 @@ import Data.Functor.Classes
        showsUnaryWith)
 import Data.String          (IsString (..))
 
-import qualified Data.Text       as T
-import qualified Data.Text.Short as TS
-
 import OL1.Error
-import OL1.Name
 import OL1.Pretty
 import OL1.Type
-
 import OL1.Syntax
 import OL1.Syntax.Sym
 import OL1.Syntax.ToSyntax
 
 -- | 'Intro' has a normal deduction, \(A\!\uparrow\).
 data Intro b a
-    = VLam N (Mono b) (Scope N (Intro b) a)
-    | VLamTy N (Scope N (Intro' a) b)
+    = VLam ISym(Mono b) (Scope ISym(Intro b) a)
+    | VLamTy ISym(Scope ISym(Intro' a) b)
     | VCoerce (Elim b a)
     | VErr Err
 
@@ -75,7 +70,7 @@ instance Pretty b => Monad (Intro b) where
     VLamTy n b       >>= k = undefined n b k
 
 {- VLamTy n $ (overScopeH . overIntro') (>>= k') b where
-        k' :: a -> Intro (Var N (Mono b)) c
+        k' :: a -> Intro (Var ISym(Mono b)) c
         k' = first (return . return) . k
 -}
 
@@ -268,9 +263,9 @@ instance (Pretty a, Pretty b) => Pretty (Elim b a)  where ppr = ppr1
 
 pprIntro :: Intro Doc Doc -> MDoc
 pprIntro (VErr err)      = ppr err
-pprIntro (VLam n _ b)      = pprScopedC n $ \n' ->
+pprIntro (VLam n _ b)      = pprScoped (isymToText n) $ \n' ->
     sexpr (pprText "fn") [ return n', pprIntro $ instantiate1 (return n') b ]
-pprIntro (VLamTy n b)  = pprScopedC n $ \n' ->
+pprIntro (VLamTy n b)  = pprScoped (isymToText n) $ \n' ->
      sexpr (pprText "poly") [ return n', pprIntro $ instantiate1Mono (return n') b ]
 pprIntro (VCoerce x)     = pprElim x
 
@@ -305,8 +300,8 @@ instance (a ~ Sym, b ~ Sym) => ToSyntax (Elim a b) where
     toSyntax (VApp f x) = slist (toSyntax f) [toSyntax x]
     toSyntax (VAppTy x t) = slist' (toSyntax x) [At <$> toSyntax t]
 
-nToSym :: N -> Sym
-nToSym (N s) = Sym (TS.pack (T.unpack s))
+nToSym :: ISym -> Sym
+nToSym (ISym s) = s
 
 -------------------------------------------------------------------------------
 -- Smart

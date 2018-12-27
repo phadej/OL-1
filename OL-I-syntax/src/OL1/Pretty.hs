@@ -275,3 +275,6 @@ instance (Pretty1 t, Pretty a) => Pretty (UTerm t a) where ppr = ppr1
 
 instance Pretty Sym where
     ppr (Sym s) = pprText (TS.unpack s)
+
+instance Pretty ISym where
+    ppr (ISym s) = ppr s
