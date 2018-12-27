@@ -53,6 +53,12 @@ instance ToSyntax Syntax where
 instance ToSyntax a => ToSyntax (Printer a) where
     toSyntax = (>>= toSyntax)
 
+toSyntax' :: ToSyntax a => a -> Syntax
+toSyntax' = runPrinter . toSyntax
+
+toSyntax1' :: (ToSyntax1 f, ToSyntax a) => f a -> Syntax
+toSyntax1' = runPrinter . toSyntax1
+
 toSyntax1 :: (ToSyntax1 f, ToSyntax a) => f a -> SyntaxM
 toSyntax1 = liftToSyntax toSyntax
 
@@ -163,8 +169,18 @@ data Stream a = a :> Stream a
 -- Instances: base
 -------------------------------------------------------------------------------
 
+instance ToSyntax () where
+    toSyntax _ = slist []
+
 instance ToSyntax Void where
     toSyntax = absurd
+
+instance ToSyntax b => ToSyntax1 (Either b) where
+    liftToSyntax s (Right x) = s x
+    liftToSyntax _ (Left y) = toSyntax y
+
+instance (ToSyntax b, ToSyntax a) => ToSyntax (Either b a) where
+    toSyntax = toSyntax1
 
 -------------------------------------------------------------------------------
 -- Instances: bound

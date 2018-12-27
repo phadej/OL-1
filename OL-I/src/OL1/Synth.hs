@@ -24,7 +24,6 @@ import qualified Data.Map.Strict as Map
 
 import OL1.Error
 import OL1.Expr
-import OL1.Pretty
 import OL1.Syntax
 import OL1.Type
 
@@ -48,7 +47,7 @@ toU (a :-> b) = UTerm (toU a :=> toU b)
 -------------------------------------------------------------------------------
 
 synth
-    :: forall a b. (Ord a, Eq b, Pretty a, Pretty b)
+    :: forall a b. (Ord a, Eq b, ToSyntax a, ToSyntax b)
     => (a -> Maybe (Poly b))
     -> Inf (Maybe b) a
     -> Either Err (Inf b a, [Warning a])
@@ -81,7 +80,7 @@ synth ctx
         Pair (Inf' expr4) ty' <- applyBindingsAll $ Pair (Inf' expr3) ty
 
         warnings <- for (Map.toList freeVars) $ \(a, v) ->
-            NotInScope a . ppr . flattenMonoDoc <$> applyBindings (UVar v)
+            NotInScope a . toSyntax' . flattenMonoDoc <$> applyBindings (UVar v)
 
         return (expr4, ty', warnings)
 
@@ -89,10 +88,10 @@ synth ctx
 -- Warning
 -------------------------------------------------------------------------------
 
-data Warning a = NotInScope a MDoc
+data Warning a = NotInScope a Syntax
 
-instance Pretty a => Pretty (Warning a) where
-    ppr (NotInScope a d) = sexpr (pprText "not-in-scope") [ppr a, d]
+-- instance Pretty a => Pretty (Warning a) where
+--    toSyntax' (NotInScope a d) = sexpr (pprText "not-in-scope") [toSyntax' a, d]
 
 -------------------------------------------------------------------------------
 -- Generalise
@@ -103,9 +102,9 @@ flattenMono (UVar v)             = T (Left v)
 flattenMono (UTerm (TF x))       = T (Right x)
 flattenMono (UTerm (a :=> b))    = flattenMono a :-> flattenMono b
 
-flattenMonoDoc :: Pretty b => U b v -> Mono (Either v MDoc)
+flattenMonoDoc :: ToSyntax b => U b v -> Mono (Either v Syntax)
 flattenMonoDoc (UVar v)             = T (Left v)
-flattenMonoDoc (UTerm (TF x))       = T (Right (ppr x))
+flattenMonoDoc (UTerm (TF x))       = T (Right (toSyntax' x))
 flattenMonoDoc (UTerm (a :=> b))    = flattenMonoDoc a :-> flattenMonoDoc b
 
 flattenPoly :: Poly (U b v) -> Poly (Either v b)
@@ -163,8 +162,8 @@ wrap :: U b v -> Poly (U b v)
 wrap = Mono . T
 
 synInfer
-    :: (RigidVariable ISym v, Eq b, Pretty a, Pretty b, Pretty v)
-    => [MDoc]
+    :: (RigidVariable ISym v, Eq b, ToSyntax a, ToSyntax b, ToSyntax v)
+    => [Syntax]
     -> Inf (U b v) (Poly (U b v), a)  -- ^ terms with meta leaves
     -> Unify' b v (Inf (U b v) a, Poly (U b v))
 synInfer ts term = case term of
@@ -179,14 +178,15 @@ synInfer ts term = case term of
         (x', xt) <- synInfer ts' x
         case xt of
             Forall _ b -> pure (AppTy x' t, instantiate1H t b)
-            _          -> throwError $ NotAPolyFunction (ppr xt) (ppr' x) (ppr t) ts'
+            _          -> throwError $ NotAPolyFunction (toSyntax' xt) (ppr' x) (toSyntax' t) ts'
   where
-    pprTerm = ppr (fmap (uncurry $ \t x -> sexpr (pprText "the") [ ppr t , ppr x]) term)
-    ts'     = pprTerm : ts
+    ppr' term' = toSyntax' $ uncurry (\t x -> sthe (toSyntax t) (toSyntax x)) <$> term'
+    pprTerm    = ppr' term
+    ts'        = pprTerm : ts
 
 sysInferApp
-    :: (Eq b, Pretty a, Pretty b, Pretty v, RigidVariable ISym v)
-    => [MDoc]
+    :: (Eq b, RigidVariable ISym v, ToSyntax a, ToSyntax b, ToSyntax v)
+    => [Syntax]
     -> Inf (U b v) a
     -> Poly (U b v)
     -> Chk (U b v) (Poly (U b v ), a)
@@ -214,7 +214,7 @@ sysInferApp ts' f ab x = case ab of
 type InfPoly a u = Product (Inf' a) Poly u
 
 unifyPoly
-    :: forall b a v. (RigidVariable ISym v, Eq b, Pretty b, Pretty v)
+    :: forall b a v. (Eq b, RigidVariable ISym v, ToSyntax a, ToSyntax b, ToSyntax v)
     => Inf (U b v) a
     -> Poly (U b v) -- inferred
     -> Poly (U b v) -- actual
@@ -249,12 +249,12 @@ unifyPoly u (Forall _ b) t@Mono {} = do
     a <- T . UVar <$> freeVar
     unifyPoly (AppTy u a) (instantiate1H a b) t
 
-unifyPoly _ a@Mono {} b@Forall {} = throwError $ TypeMismatch
-    (ppr a) (ppr b) (pprText "?") []
+unifyPoly u a@Mono {} b@Forall {} = throwError $ TypeMismatch
+    (toSyntax' a) (toSyntax' b) (toSyntax' u) []
 
 synCheck
-    :: forall a b v. (Eq b, Pretty a, Pretty b, RigidVariable ISym v, Pretty v)
-    => [MDoc]
+    :: forall a b v. (Eq b, RigidVariable ISym v, ToSyntax a, ToSyntax b, ToSyntax v)
+    => [Syntax]
     -> Chk (U b v) (Poly (U b v), a)
     -> Poly (U b v)
     -> Unify' b v (Chk (U b v) a, Poly (U b v))
@@ -281,7 +281,7 @@ synCheck ts term ty = case term of
             let e' = instantiateHEither inst e
             (e'', _) <- synCheck ts' e' (Mono b)
             pure (Lam n $ abstractHEither id e'', ty)
-        Forall {} ->  throwError $ PolyNotForall (ppr ty) pprTerm ts
+        Forall {} ->  throwError $ PolyNotForall (toSyntax' ty) pprTerm ts
     LamTy n e0 -> case ty of
         Forall m s0 -> withRigid $ do
             let e1 = unChk' $ bimap (first (fmap (fmap Right))) comm $ fromScopeH e0
@@ -294,9 +294,9 @@ synCheck ts term ty = case term of
                 ( LamTy n $ toScopeH $ fmap uncomm e4
                 , Forall m $ toScopeH $ fmap uncomm s4
                 )
-        _ -> throwError $ PolyNotForall (ppr ty) pprTerm ts
+        _ -> throwError $ PolyNotForall (toSyntax' ty) pprTerm ts
   where
-    pprTerm = ppr' term
+    pprTerm = toSyntax' $ uncurry (\t x -> sthe (toSyntax t) (toSyntax x)) <$> term
     ts'     = pprTerm : ts
 
 comm :: Var ISym (U b v) -> U b (Either ISym v)
@@ -312,5 +312,5 @@ uncomm (Left (Right v)) = F (UVar v)
 -- Helpers
 -------------------------------------------------------------------------------
 
-ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> MDoc
-ppr' x = ppr (snd <$> x)
+-- ppr' :: (Functor f, Pretty (f b)) => f (a, b) -> MDoc
+-- ppr' x = toSyntax' (snd <$> x)

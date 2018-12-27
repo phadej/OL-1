@@ -61,7 +61,6 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
         header "EVALUATED VALUE"
         tellString $ syntaxToString $ runPrinter $ toSyntax val
-
   where
     input  = "fixtures" </> name -<.> "ol1"
     output = "fixtures" </> name -<.> "out"

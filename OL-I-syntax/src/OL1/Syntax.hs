@@ -13,6 +13,9 @@ module OL1.Syntax (
     prettySyntax,
     -- * ToSyntax
     ToSyntax (..),
+    ToSyntax1 (..),
+    toSyntax',
+    toSyntax1',
     Printer,
     runPrinter,
     -- ** Low-level combinators

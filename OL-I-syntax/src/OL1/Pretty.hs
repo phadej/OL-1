@@ -42,6 +42,7 @@ import qualified Data.Text                as T
 import qualified Data.Text.Short          as TS
 import qualified Text.PrettyPrint.Compact as PP
 
+import OL1.Syntax hiding (Reserved)
 import OL1.Syntax.Sym
 
 -------------------------------------------------------------------------------
@@ -275,6 +276,9 @@ instance (Pretty1 t, Pretty a) => Pretty (UTerm t a) where ppr = ppr1
 
 instance Pretty Sym where
     ppr (Sym s) = pprText (TS.unpack s)
+
+instance Pretty Syntax where
+    ppr = return . prettySyntax
 
 instance Pretty ISym where
     ppr (ISym s) = ppr s

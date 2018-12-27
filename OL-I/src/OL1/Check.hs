@@ -6,13 +6,13 @@ import Bound.Var          (Var (..))
 
 import OL1.Error
 import OL1.Expr
-import OL1.Pretty
+import OL1.Syntax
 import OL1.Type
 import OL1.Value
 
 -- | Infer 'Inf b' type.
 infer
-    :: (Eq b, Pretty a, Pretty b)
+    :: (Eq b, ToSyntax a, ToSyntax b)
     => (a -> Maybe (Poly b))
     -> Inf b a
     -> Either Err (Intro b a, Poly b)
@@ -20,7 +20,7 @@ infer = rinfer []
 
 -- | Check 'Chk b' type.
 check
-    :: (Eq b, Pretty a, Pretty b)
+    :: (Eq b, ToSyntax a, ToSyntax b)
     => (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b
@@ -32,14 +32,14 @@ check = rcheck []
 -------------------------------------------------------------------------------
 
 rinfer
-    :: (Eq b, Pretty a, Pretty b)
-    => [MDoc]
+    :: (Eq b, ToSyntax a, ToSyntax b)
+    => [Syntax]
     -> (a -> Maybe (Poly b))
     -> Inf b a
     -> Either Err (Intro b a, Poly b)
 rinfer ts ctx term = case term of
     V x -> case ctx x of
-        Nothing -> Left $ VariableNotInScope (ppr x) ts
+        Nothing -> Left $ VariableNotInScope (toSyntax' x) ts
         Just t  -> pure (return x, t)
     Ann x t -> do
         x' <- rcheck ts' ctx x t
@@ -50,18 +50,18 @@ rinfer ts ctx term = case term of
             Mono (a :-> b) -> do
                 x' <- rcheck ts' ctx x (Mono a)
                 pure (valueApp f' x', Mono b)
-            _ -> Left $ NotAFunction (ppr ft) (ppr f) (ppr x) ts'
+            _ -> Left $ NotAFunction (toSyntax' ft) (toSyntax' f) (toSyntax' x) ts'
     AppTy x t -> do
         (x', xt) <- rinfer ts' ctx x
         case xt of
             Forall _ b -> pure $ (valueAppTy x' t, instantiate1H t b)
-            _          -> Left $ NotAPolyFunction (ppr xt) (ppr x) (ppr t) ts'
+            _          -> Left $ NotAPolyFunction (toSyntax' xt) (toSyntax' x) (toSyntax' t) ts'
   where
-    ts' = ppr term : ts
+    ts' = toSyntax' term : ts
 
 rcheck
-    :: (Eq b, Pretty a, Pretty b)
-    => [MDoc] -- ^ terms we walked through, for error reporting
+    :: (Eq b, ToSyntax a, ToSyntax b)
+    => [Syntax] -- ^ terms we walked through, for error reporting
     -> (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b
@@ -71,7 +71,7 @@ rcheck ts ctx term t = case term of
         (u', t') <- rinfer ts' ctx u
         if (t == t')
         then return u'
-        else Left $ TypeMismatch (ppr t) (ppr t') (ppr u) ts
+        else Left $ TypeMismatch (toSyntax' t) (toSyntax' t') (toSyntax' u) ts
     Lam n e -> case t of
         Mono (a :-> b) -> do
             let ee = fromScopeH e
@@ -79,7 +79,7 @@ rcheck ts ctx term t = case term of
             let e' = toScope ee'
             return $ VLam n a e'
 
-        _ -> Left $ LambdaNotArrow (ppr t) (ppr term) ts
+        _ -> Left $ LambdaNotArrow (toSyntax' t) (toSyntax' term) ts
     LamTy n e ->  case t of
         Forall _m s -> do
             let ee = unChk' $ fromScopeH e
@@ -87,9 +87,9 @@ rcheck ts ctx term t = case term of
             ee' <- rcheck ts' (addTyContext ctx) ee ss
             let e' = toScope $ Intro' ee'
             return $ VLamTy n e'
-        _ -> Left $ PolyNotForall (ppr t) (ppr term) ts
+        _ -> Left $ PolyNotForall (toSyntax' t) (toSyntax' term) ts
   where
-    ts' = ppr term : ts
+    ts' = toSyntax' term : ts
 
 addContext
     :: Mono b                  -- ^ x

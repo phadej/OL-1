@@ -5,7 +5,7 @@ import Prelude ()
 import Prelude.Compat
 
 import Bound.Class          (Bound (..))
-import Bound.Scope.Simple   (Scope (..), toScope, fromScope, hoistScope, instantiate1)
+import Bound.Scope.Simple   (Scope (..), toScope, fromScope, hoistScope, instantiate1, bitraverseScope)
 import Bound.Var            (Var (..))
 import Control.Monad        (ap, void)
 import Control.Monad.Module (Module (..))
@@ -27,8 +27,8 @@ import OL1.Syntax.ToSyntax
 
 -- | 'Intro' has a normal deduction, \(A\!\uparrow\).
 data Intro b a
-    = VLam ISym(Mono b) (Scope ISym(Intro b) a)
-    | VLamTy ISym(Scope ISym(Intro' a) b)
+    = VLam ISym (Mono b) (Scope ISym (Intro b) a)
+    | VLamTy ISym (Scope ISym (Intro' a) b)
     | VCoerce (Elim b a)
     | VErr Err
 
@@ -56,11 +56,11 @@ instance Functor (Intro' a) where
 instance Functor (Elim b) where
     fmap = second
 
-instance Pretty b => Applicative (Intro b) where
+instance ToSyntax b => Applicative (Intro b) where
     pure = VCoerce . pure
     (<*>) = ap
 
-instance Pretty b => Monad (Intro b) where
+instance ToSyntax b => Monad (Intro b) where
     return = pure
 
     (>>=) :: forall a c. Intro b a -> (a -> Intro b c) -> Intro b c
@@ -74,23 +74,23 @@ instance Pretty b => Monad (Intro b) where
         k' = first (return . return) . k
 -}
 
-valueAppBind :: Pretty b => Elim b a -> (a -> Intro b c) -> Intro b c
+valueAppBind :: ToSyntax b => Elim b a -> (a -> Intro b c) -> Intro b c
 valueAppBind (VVar a) k     = k a
 valueAppBind (VApp f x) k   = valueApp (valueAppBind f k) (x >>= k)
 valueAppBind (VAppTy f t) k = valueAppTy (valueAppBind f k) t
 
-instance Pretty b => Applicative (Elim b) where
+instance ToSyntax b => Applicative (Elim b) where
     pure = VVar
     (<*>) = ap
 
-instance Pretty b => Monad (Elim b) where
+instance ToSyntax b => Monad (Elim b) where
     return = pure
 
     VVar x     >>= k = k x
     VApp f x   >>= k = VApp (f >>= k) (valueBind x k)
     VAppTy x t >>= k = VAppTy (x >>= k) t
 
-valueBind :: Pretty b => Intro b a -> (a -> Elim b c) -> Intro b c
+valueBind :: ToSyntax b => Intro b a -> (a -> Elim b c) -> Intro b c
 valueBind (VCoerce e)  k = VCoerce (e >>= k)
 valueBind (VLam n t b) k = VLam n t (b >>>= VCoerce . k)
 valueBind (VErr err)   _ = VErr err
@@ -134,8 +134,19 @@ instance Bitraversable Intro' where
     bitraverse f g = fmap Intro' . bitraverse g f . unIntro'
 
 instance Bitraversable Intro where
+    bitraverse _ _ (VErr err)   = pure (VErr err)
+    bitraverse f g (VCoerce x)  = VCoerce <$> bitraverse f g x
+    bitraverse f g (VLam n t b) = VLam n
+        <$> traverse f t
+        <*> bitraverseScope f g b
+  
+    bitraverse f g (VLamTy n b) = VLamTy n
+        <$> bitraverseScope g f b
 
 instance Bitraversable Elim where
+    bitraverse _ g (VVar a)     = VVar <$> g a
+    bitraverse f g (VApp x y)   = VApp <$> bitraverse f g x <*> bitraverse f g y
+    bitraverse f g (VAppTy x y) = VAppTy <$> bitraverse f g x <*> traverse f y
 
 -------------------------------------------------------------------------------
 -- V application
@@ -145,33 +156,24 @@ instance Bitraversable Elim where
 --
 -- Note that '@@' from "Language.PTSmart" module is different
 valueApp
-    :: Pretty b
+    :: ToSyntax b
     => Intro b a  -- ^ f : a -> b
     -> Intro b a  -- ^ x : a
     -> Intro b a  -- ^ _ : b
 valueApp (VCoerce f)  x = VCoerce (VApp f x)
 valueApp (VErr err)   _ = VErr err
 valueApp (VLam _ _ b) x = instantiate1 x b
-valueApp f            _ = VErr (ApplyPanic (ppr (void f)))
+valueApp f            _ = VErr (ApplyPanic (toSyntax' (void f)))
 
 valueAppTy
-    :: Pretty b
+    :: ToSyntax b
     => Intro b a
     -> Mono b
     -> Intro b a
 valueAppTy (VCoerce x)  t = VCoerce (VAppTy x t)
 valueAppTy (VErr err)   _ = VErr err
 valueAppTy (VLamTy _ b) t = instantiate1Mono t b
-valueAppTy f            _ = VErr (ApplyPanic (ppr (void f)))
-
--------------------------------------------------------------------------------
--- Instantiation of mono types
--------------------------------------------------------------------------------
-
-instantiate1Mono :: Mono b -> Scope n (Intro' a) b -> Intro b a
-instantiate1Mono t (Scope (Intro' s)) = bindIntroMono s k where
-    k (B _) = t
-    k (F y) = return y
+valueAppTy f            _ = VErr (ApplyPanic (toSyntax' (void f)))
 
 -------------------------------------------------------------------------------
 -- Eq
@@ -264,7 +266,7 @@ instance (Pretty a, Pretty b) => Pretty (Elim b a)  where ppr = ppr1
 pprIntro :: Intro Doc Doc -> MDoc
 pprIntro (VErr err)      = ppr err
 pprIntro (VLam n _ b)      = pprScoped (isymToText n) $ \n' ->
-    sexpr (pprText "fn") [ return n', pprIntro $ instantiate1 (return n') b ]
+    sexpr (pprText "fn") [ return n', pprIntro $ instantiate1return n' b ]
 pprIntro (VLamTy n b)  = pprScoped (isymToText n) $ \n' ->
      sexpr (pprText "poly") [ return n', pprIntro $ instantiate1Mono (return n') b ]
 pprIntro (VCoerce x)     = pprElim x
@@ -278,26 +280,45 @@ pprElim (VAppTy x t) = sexpr (pprElim x) [pprChar '@' <> pprMono t]
 -- ToSyntax
 -------------------------------------------------------------------------------
 
-instance (a ~ Sym, b ~ Sym) => ToSyntax (Intro a b) where
-    toSyntax = toSyntax'
+instance (ToSyntax a, ToSyntax b) => ToSyntax (Intro a b) where
+    toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxIntro
 
-toSyntax' :: Intro Sym Sym -> SyntaxM
-toSyntax' (VErr _err)  = error "some error!"
-toSyntax' (VCoerce x)  = toSyntax x
-toSyntax' (VLam n t b) = freshen (nToSym n) $ \s -> sfn
-    (sthe (toSyntax t) (toSyntax s))
-    (toSyntax (instantiate1 (return s) b))
-toSyntax' (VLamTy n b) = freshen (nToSym n) $ \s -> spoly
-    (toSyntax s)
-    (toSyntax (instantiate1Mono (return s) b))
+instance (ToSyntax a, ToSyntax b) => ToSyntax (Elim a b) where
+    toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxElim
 
-instance (a ~ Sym, b ~ Sym) => ToSyntax (Elim a b) where
-    toSyntax (VVar v)     = ssym v
-    toSyntax (VApp f x)   = sapp (toSyntax f) (toSyntax x)
-    toSyntax (VAppTy x t) = sappTy (toSyntax x) (toSyntax t)
+toSyntaxIntro :: Intro Syntax Syntax -> SyntaxM
+toSyntaxIntro (VErr _err)  = error "some error!"
+toSyntaxIntro (VCoerce x)  = toSyntaxElim x
+toSyntaxIntro (VLam (ISym n) t b) = freshen n $ \s -> sfn
+    (sthe (toSyntaxMono t) (ssym s))
+    (toSyntaxIntro (instantiate1return (SSym s) b))
+toSyntaxIntro (VLamTy (ISym n) b) = freshen n $ \s -> spoly
+    (ssym s)
+    (toSyntaxIntro (instantiate1MonoReturn (SSym s) b))
 
-nToSym :: ISym -> Sym
-nToSym (ISym s) = s
+toSyntaxElim :: Elim Syntax Syntax -> SyntaxM
+toSyntaxElim (VVar v)     = return v
+toSyntaxElim (VApp f x)   = sapp (toSyntaxElim f) (toSyntaxIntro x)
+toSyntaxElim (VAppTy x t) = sappTy (toSyntaxElim x) (toSyntaxMono t)
+
+-------------------------------------------------------------------------------
+-- instantiate variants
+-------------------------------------------------------------------------------
+
+instantiate1Mono :: Mono b -> Scope n (Intro' a) b -> Intro b a
+instantiate1Mono t (Scope (Intro' s)) = bindIntroMono s k where
+    k (B _) = t
+    k (F y) = return y
+
+instantiate1MonoReturn :: b -> Scope n (Intro' a) b -> Intro b a
+instantiate1MonoReturn t (Scope (Intro' s)) = first k s where
+    k (B _) = t
+    k (F y) = y
+
+instantiate1return :: Functor f => a -> Scope n f a -> f a
+instantiate1return x (Scope s) = fmap k s where
+    k (B _) = x
+    k (F a) = a
 
 -------------------------------------------------------------------------------
 -- Smart

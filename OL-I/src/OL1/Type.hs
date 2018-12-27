@@ -1,10 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OL1.Type where
 
-import Bound.ScopeH              (ScopeH, instantiate1H, abstractHEither)
+import Bound.ScopeH              (ScopeH, abstractHEither, instantiate1H)
 import Control.Monad             (ap)
 import Control.Monad.Module      (Module (..))
 import Control.Unification.Rigid (Unifiable (..))
+import Data.Bifoldable           (Bifoldable (..))
+import Data.Bifunctor            (Bifunctor (..))
+import Data.Bitraversable
+       (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Functor.Classes
        (Eq1 (..), Show1 (..), eq1, showsBinaryWith, showsPrec1, showsUnaryWith)
 import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
@@ -113,6 +117,13 @@ instance Corecursive (Mono a) where
     embed (TF a)    = T a
     embed (a :=> b) = a :-> b
 
+instance Bifunctor MonoF where bimap = bimapDefault
+instance Bifoldable MonoF where bifoldMap = bifoldMapDefault
+
+instance Bitraversable MonoF where
+    bitraverse f _ (TF a)    = TF <$> f a
+    bitraverse _ g (a :=> b) = (:=>) <$> g a <*> g b
+
 instance Eq a => Unifiable (MonoF a) where
     zipMatch (TF a)       (TF b)
         | a == b    = Just (TF a)
@@ -159,12 +170,18 @@ isymToText (ISym (Sym s)) = T.pack $ TS.unpack s
 instance ToSyntax a => ToSyntax (Mono a) where
     toSyntax a = traverse toSyntax a >>= toSyntaxMono
 
+instance ToSyntax a => ToSyntax1 (MonoF a) where
+    liftToSyntax s a = bitraverse toSyntax (return . s) a >>= toSyntaxMonoF
+
 instance ToSyntax a => ToSyntax (Poly a) where
     toSyntax a = traverse toSyntax a >>= toSyntaxPoly
 
 toSyntaxMono :: Mono Syntax -> Printer Syntax
-toSyntaxMono (T a)     = return a
-toSyntaxMono (a :-> b) = sarrow (toSyntaxMono a) (toSyntaxMono b)
+toSyntaxMono = cata toSyntaxMonoF
+
+toSyntaxMonoF :: MonoF Syntax (Printer Syntax) -> Printer Syntax
+toSyntaxMonoF (TF a)    = return a
+toSyntaxMonoF (a :=> b) = sarrow a b
 
 toSyntaxPoly :: Poly Syntax -> Printer Syntax
 toSyntaxPoly (Mono a)     = toSyntaxMono a
