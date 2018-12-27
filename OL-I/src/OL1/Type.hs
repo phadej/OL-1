@@ -158,14 +158,23 @@ isymToText (ISym (Sym s)) = T.pack $ TS.unpack s
 
 instance ToSyntax a => ToSyntax (Mono a) where
     toSyntax (T a) = toSyntax a
-    toSyntax (a :-> b) = srlist RFnType [toSyntax a, toSyntax b]
+    toSyntax (a :-> b) = sarrow (toSyntax a) (toSyntax b)
+
+instance ToSyntax a => ToSyntax (Poly a) where
+    toSyntax a = traverse toSyntax a >>= toSyntaxPoly
+
+toSyntaxPoly :: Poly Syntax -> Printer Syntax
+toSyntaxPoly (Mono a)     = toSyntax a
+toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
+    let s'' = SSym s'
+    in sforall (return s'') $ toSyntax $ instantiate1H (return s'') a
 
 -------------------------------------------------------------------------------
 -- FromSyntax
 -------------------------------------------------------------------------------
 
 instance FromSyntax a => FromSyntax (Mono a) where
-    fromSyntax (SRList RFnType [Juxta a, Juxta b]) =
+    fromSyntax (SRList RFnType [a, b]) =
         (:->) <$> fromSyntax a <*> fromSyntax b
     fromSyntax s = T <$> fromSyntax s
 

@@ -40,12 +40,8 @@ mkCase name = goldenVsStringDiff name diff output $ do
         s0 <- either throwError pure $ parseSyntax input contents
         tellString $ syntaxToString s0
 
-        header "DESUGARED"
-        let s1 = desugar s0
-        tellString $ syntaxToString s1
-
         header "FROMSYNTAX"
-        expr0 <- either throwError pure $ runParser (fromSyntax s1) :: M (Chk Sym Sym)
+        expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk Sym Sym)
         tellString $ pretty expr0
 
         header "INFERED"
@@ -58,7 +54,7 @@ mkCase name = goldenVsStringDiff name diff output $ do
         (val, ty) <- either (throwError . pretty) pure $ infer
             ctx
             expr1
-        tellString $ pretty ty
+        tellString $ syntaxToString $ runPrinter $ toSyntax ty
 
         header "EVALED"
         tellString $ syntaxToString $ runPrinter $ toSyntax val

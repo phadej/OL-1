@@ -286,19 +286,19 @@ toSyntax' (VErr _err)  = error "some error!"
 toSyntax' (VCoerce x)  = toSyntax x
 toSyntax' (VLam n t b) = freshen (nToSym n) $ \s ->
     srlist RFn
-        [ srlist RThe [ toSyntax t, toSyntax s ]
+        [ slist [srlist RThe [ toSyntax t, toSyntax s ]]
         , toSyntax $ instantiate1 (return s) b
         ]
 toSyntax' (VLamTy n b) = freshen (nToSym n) $ \s ->
-    srlist' RFn
-        [ At <$> toSyntax s
-        , fmap At $ toSyntax $ instantiate1Mono (return s) b
+    srlist RFn
+        [ slist [sat $ toSyntax s]
+        , sat $ toSyntax $ instantiate1Mono (return s) b
         ]
 
 instance (a ~ Sym, b ~ Sym) => ToSyntax (Elim a b) where
-    toSyntax (VVar v)   = ssym v
-    toSyntax (VApp f x) = slist (toSyntax f) [toSyntax x]
-    toSyntax (VAppTy x t) = slist' (toSyntax x) [At <$> toSyntax t]
+    toSyntax (VVar v)     = ssym v
+    toSyntax (VApp f x)   = slist [toSyntax f, toSyntax x]
+    toSyntax (VAppTy x t) = slist [toSyntax x, sat $ toSyntax t]
 
 nToSym :: ISym -> Sym
 nToSym (ISym s) = s

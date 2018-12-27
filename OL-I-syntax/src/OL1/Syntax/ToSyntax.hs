@@ -1,9 +1,10 @@
 module OL1.Syntax.ToSyntax where
 
 import Bound.Var                  (Var (..))
-import Control.Monad.State.Strict
+import Control.Monad.State.Strict (State, evalState)
 import Control.Unification.Rigid  (MetaVar (..), UTerm (..))
 import Data.Char                  (isDigit)
+import Control.Applicative (liftA2)
 import Data.String                (IsString (..))
 import Data.Text.Short            (ShortText)
 import Data.Void                  (Void, absurd)
@@ -71,24 +72,38 @@ freshen s@(Sym _) f = f s
     return x
 -}
 
+freshenI :: ISym -> (Sym -> Printer a) -> Printer a
+freshenI (ISym s) = freshen s
+
 -------------------------------------------------------------------------------
 -- Combinators
 -------------------------------------------------------------------------------
 
+sat :: SyntaxM -> SyntaxM
+sat = fmap SAt
+
 ssym :: Sym -> SyntaxM
 ssym = return . SSym
 
-slist :: SyntaxM -> [SyntaxM] -> SyntaxM
-slist f = slist' f . map (fmap Juxta)
-
-slist' :: SyntaxM -> [Printer AppSyntax] -> SyntaxM
-slist' f xs = SList <$> f <*> sequenceA xs
+slist ::[SyntaxM] -> SyntaxM
+slist = fmap SList . sequenceA
 
 srlist :: Reserved -> [SyntaxM] -> SyntaxM
-srlist r = srlist' r . map (fmap Juxta)
+srlist r = fmap (SRList r) . sequenceA
 
-srlist' :: Reserved -> [Printer AppSyntax] -> SyntaxM
-srlist' r xs = SRList r <$> sequenceA xs
+-------------------------------------------------------------------------------
+-- Higher order
+-------------------------------------------------------------------------------
+
+sarrow :: SyntaxM -> SyntaxM -> SyntaxM
+sarrow = liftA2 arrow where
+    arrow a (SRList RFnType b) = SRList RFnType (a : b)
+    arrow a b                  = SRList RFnType [a, b]
+
+sforall :: SyntaxM -> SyntaxM -> SyntaxM
+sforall = liftA2 forall where
+    forall a (SRList RFnType b) = SRList RFnType (SAt a : b)
+    forall a b                  = SRList RFnType [SAt a, b]
 
 -------------------------------------------------------------------------------
 -- U

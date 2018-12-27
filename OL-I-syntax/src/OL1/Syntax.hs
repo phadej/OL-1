@@ -4,7 +4,6 @@ module OL1.Syntax (
     ISym,
     Reserved (..),
     Syntax (..),
-    AppSyntax (..),
     -- * Parsing
     syntaxFromString,
     parseSyntax,
@@ -14,19 +13,21 @@ module OL1.Syntax (
     prettySyntax,
     -- * ToSyntax
     ToSyntax (..),
+    Printer,
     runPrinter,
     -- ** Low-level combinators
     ssym,
+    sat,
     slist,
-    slist',
     srlist,
-    srlist',
     freshen,
+    freshenI,
+    -- ** Higher-level combinators
+    sarrow,
+    sforall,
     -- * FromSyntax
     FromSyntax (..),
     runParser,
-    -- * Sugar
-    desugar,
     ) where
 
 import OL1.Syntax.FromSyntax
@@ -34,6 +35,5 @@ import OL1.Syntax.Parser
 import OL1.Syntax.Pretty
 import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
-import OL1.Syntax.Sugar
 import OL1.Syntax.ToSyntax
 import OL1.Syntax.Type

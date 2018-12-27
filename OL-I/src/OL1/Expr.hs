@@ -8,6 +8,7 @@ import Bound.Var            (Var (..))
 import Control.Monad        (ap)
 import Control.Monad.Module (Module (..))
 import Data.Bifoldable      (Bifoldable (..))
+import Data.Foldable (foldrM)
 import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Coerce          (coerce)
@@ -226,9 +227,10 @@ pprChk (LamTy n b) = pprScoped (isymToText n) $ \n' ->
 
 -- | TODO the context
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
-    fromSyntax (SSym s)            = return (V s)
-    fromSyntax (SList f [Juxta x]) = App <$> fromSyntax f <*> fromSyntax x
-    fromSyntax (SRList RThe [Juxta t, Juxta x]) =
+    fromSyntax (SSym s)           = return (V s)
+    fromSyntax (SList [f, SAt x])   = AppTy <$> fromSyntax f <*> fromSyntax x
+    fromSyntax (SList [f, x])       = App <$> fromSyntax f <*> fromSyntax x
+    fromSyntax (SRList RThe [t, x]) =
         Ann <$> fromSyntax x <*> fromSyntax t
 
     fromSyntax s = failure $ "not inf: " ++ syntaxToString s
@@ -236,18 +238,27 @@ instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
 -- | TODO the context
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Chk b a) where
     -- fn
-    fromSyntax (SRList RFn [Juxta (SList (SSym s) []), Juxta body]) = lam s <$> fromSyntax body
-    fromSyntax (SRList RFn xs) = failure $ "invalid fn args: " ++ show xs
+    fromSyntax (SRList RFn [SList ss, body]) = do
+        body' <- fromSyntax body
+        foldrM lam body' ss
+      where
+        lam :: Syntax -> Chk Sym Sym -> Parser (Chk Sym Sym)
+        lam (SSym s)       b = return $ Lam s' (abstractHEither k b) where
+            s' = ISym s
+            k n | n == s    = Left s'
+                | otherwise = Right n
+
+        lam (SAt (SSym s)) b = return $ LamTy s' (abstractHEither k (Chk' b)) where
+            s' = ISym s
+            k n | n == s    = Left s'
+                | otherwise = Right n
+
+        lam s              _ = failure $ "Invalid fn arg" ++ show s -- TODO prety
+
+    fromSyntax (SRList RFn xs) =
+        failure $ "invalid fn args: " ++ show xs
 
     fromSyntax s = Inf <$> fromSyntax s
-
-lam :: Sym -> Chk Sym Sym -> Chk Sym Sym
-lam x b = Lam s $ abstractHEither k b
-  where
-    s = ISym x
-
-    k n | n == x    = Left s
-        | otherwise = Right n
 
 -------------------------------------------------------------------------------
 -- Smart
@@ -255,4 +266,3 @@ lam x b = Lam s $ abstractHEither k b
 
 instance IsString a => IsString (Inf b a) where fromString = V . fromString
 instance IsString a => IsString (Chk b a) where fromString = Inf . fromString
-

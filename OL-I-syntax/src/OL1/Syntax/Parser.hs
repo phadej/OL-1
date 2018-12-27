@@ -47,19 +47,20 @@ parseSyntaxes fp bs =
         Failure err -> Left $ show' $ _errDoc err
 
 syntaxP :: Parser Syntax
-syntaxP = SSym <$> symP <|> parens (listP <|> pure SNil)
+syntaxP = choice
+    [ SSym <$> symP
+    , char '@' *> (SAt <$> syntaxP)
+    , parens (listP <|> pure (SList []))
+    ]
   where
     listP :: Parser Syntax
-    listP = (SRList <$> reservedP <|> SList <$> syntaxP) <*> many appSyntaxP
+    listP = (SRList <$> reservedP <|> pure SList) <*> many syntaxP
 
 reservedP :: Parser Reserved
 reservedP = choice
     [ token $ highlight H.ReservedIdentifier $ r <$ string (reservedToString r)
     | r <- [ minBound .. maxBound ]
     ]
-
-appSyntaxP :: Parser AppSyntax
-appSyntaxP = At <$ char '@' <*> syntaxP <|> Juxta <$> syntaxP
 
 symP :: Parser Sym
 symP = token $ highlight H.Symbol $ fromString <$> some symCharP where
