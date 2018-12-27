@@ -12,6 +12,7 @@ import Data.Text                 (Text)
 
 import OL1.Name
 import OL1.Pretty
+import OL1.Syntax
 
 data Mono a
     = T a
@@ -115,6 +116,26 @@ pprPoly (Forall n t) = pprScopedC n $ \n' ->
 
 instance Pretty a => Pretty (Mono a) where ppr = ppr1
 instance Pretty a => Pretty (Poly a) where ppr = ppr1
+
+-------------------------------------------------------------------------------
+-- ToSyntax
+-------------------------------------------------------------------------------
+
+instance ToSyntax a => ToSyntax (Mono a) where
+    toSyntax (T a) = toSyntax a
+    toSyntax (a :-> b) = srlist RFnType [toSyntax a, toSyntax b]
+
+-------------------------------------------------------------------------------
+-- FromSyntax
+-------------------------------------------------------------------------------
+
+instance FromSyntax a => FromSyntax (Mono a) where
+    fromSyntax (SRList RFnType [Juxta a, Juxta b]) =
+        (:->) <$> fromSyntax a <*> fromSyntax b
+    fromSyntax s = T <$> fromSyntax s
+
+instance FromSyntax a => FromSyntax (Poly a) where
+    fromSyntax s = Mono <$> fromSyntax s
 
 -------------------------------------------------------------------------------
 -- Utilities

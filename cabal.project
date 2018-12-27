@@ -6,11 +6,22 @@ packages:
 with-compiler: ghc-8.4.4
 tests: true
 
+-- Warnings
 package OL-I
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall
 
 package OL-I-syntax
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall
 
 package unification-rigid
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall
+
+-- Warnings into errors
+package OL-I
+  ghc-options: -Werror
+
+package OL-I-syntax
+  ghc-options: -Werror
+
+package unification-rigid
+  ghc-options: -Werror

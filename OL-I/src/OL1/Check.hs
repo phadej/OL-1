@@ -1,21 +1,22 @@
 module OL1.Check (infer, check) where
 
+import Bound.Scope.Simple (toScope)
 import Bound.ScopeH
-import Bound.Var     (Var (..))
-import Control.Monad (unless)
+import Bound.Var          (Var (..))
 
 import OL1.Error
 import OL1.Expr
 import OL1.Name
 import OL1.Pretty
 import OL1.Type
+import OL1.Value
 
 -- | Infer 'Inf b' type.
 infer
     :: (Eq b, Pretty a, Pretty b)
     => (a -> Maybe (Poly b))
     -> Inf b a
-    -> Either Err (Poly b)
+    -> Either Err (Intro b a, Poly b)
 infer = rinfer []
 
 -- | Check 'Chk b' type.
@@ -24,7 +25,7 @@ check
     => (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b
-    -> Either Err ()
+    -> Either Err (Intro b a)
 check = rcheck []
 
 -------------------------------------------------------------------------------
@@ -36,25 +37,25 @@ rinfer
     => [MDoc]
     -> (a -> Maybe (Poly b))
     -> Inf b a
-    -> Either Err (Poly b)
+    -> Either Err (Intro b a, Poly b)
 rinfer ts ctx term = case term of
     V x -> case ctx x of
         Nothing -> Left $ VariableNotInScope (ppr x) ts
-        Just t  -> pure t
+        Just t  -> pure (return x, t)
     Ann x t -> do
-        rcheck ts' ctx x t
-        pure t
+        x' <- rcheck ts' ctx x t
+        pure (x', t)
     App f x -> do
-        ft <- rinfer ts' ctx f
+        (f', ft) <- rinfer ts' ctx f
         case ft of
             Mono (a :-> b) -> do
-                rcheck ts' ctx x (Mono a)
-                pure (Mono b)
+                x' <- rcheck ts' ctx x (Mono a)
+                pure (valueApp f' x', Mono b)
             _ -> Left $ NotAFunction (ppr ft) (ppr f) (ppr x) ts'
     AppTy x t -> do
-        xt <- rinfer ts' ctx x
+        (x', xt) <- rinfer ts' ctx x
         case xt of
-            Forall _ b -> pure $ instantiate1H t b
+            Forall _ b -> pure $ (valueAppTy x' t, instantiate1H t b)
             _          -> Left $ NotAPolyFunction (ppr xt) (ppr x) (ppr t) ts'
   where
     ts' = ppr term : ts
@@ -65,21 +66,28 @@ rcheck
     -> (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b
-    -> Either Err ()
+    -> Either Err (Intro b a)
 rcheck ts ctx term t = case term of
     Inf u -> do
-        t' <- rinfer ts' ctx u
-        unless (t == t') $ Left $ TypeMismatch (ppr t) (ppr t') (ppr u) ts
-    Lam _n e -> case t of
+        (u', t') <- rinfer ts' ctx u
+        if (t == t')
+        then return u'
+        else Left $ TypeMismatch (ppr t) (ppr t') (ppr u) ts
+    Lam n e -> case t of
         Mono (a :-> b) -> do
-            let e' = fromScopeH e
-            rcheck ts' (addContext a ctx) e' (Mono b)
+            let ee = fromScopeH e
+            ee' <- rcheck ts' (addContext a ctx) ee (Mono b)
+            let e' = toScope ee'
+            return $ VLam n e'
+
         _ -> Left $ LambdaNotArrow (ppr t) (ppr term) ts
-    LamTy _n e ->  case t of
+    LamTy n e ->  case t of
         Forall _m s -> do
-            let e' = unChk' $ fromScopeH e
-            let s' = fromScopeH s
-            rcheck ts' (fmap (fmap F) . ctx) e' s'
+            let ee = unChk' $ fromScopeH e
+            let ss = fromScopeH s
+            ee' <- rcheck ts' (addTyContext ctx) ee ss
+            let e' = toScopeH $ Intro' ee'
+            return $ VLamTy n e'
         _ -> Left $ PolyNotForall (ppr t) (ppr term) ts
   where
     ts' = ppr term : ts
@@ -91,3 +99,8 @@ addContext
     -> Maybe (Poly b)
 addContext x _ (B _) = Just (Mono x)
 addContext _ f (F x) = f x
+
+addTyContext
+    :: (a -> Maybe (Poly b))   -- ^ context
+    -> a -> Maybe (Poly (Var N b))
+addTyContext ctx a = fmap (fmap F) $ ctx a

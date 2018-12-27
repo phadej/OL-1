@@ -6,7 +6,7 @@ import OL1.Type
 class SLam u where
     -- | Lambda-abstraction.
     --
-    -- >>> prettyPut $ (lam_ "x" "x" :: Inf () Text)
+    -- > prettyPut $ (lam_ "x" "x" :: Inf () Text)
     -- (fn x x)
     --
     lam_ :: Text -> u b Text -> u b Text

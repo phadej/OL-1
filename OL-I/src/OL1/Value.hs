@@ -1,13 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 module OL1.Value where
 
 import Prelude ()
 import Prelude.Compat
 
 import Bound.Class          (Bound (..))
-import Bound.Scope.Simple   (Scope (..), instantiate1, hoistScope)
-import Bound.ScopeH         (ScopeH (..), instantiate1H)
+import Bound.Scope.Simple
+       (Scope, hoistScope, instantiate1)
+import Bound.ScopeH         (ScopeH, fromScopeH, instantiate1H, toScopeH)
 import Bound.Var            (Var (..))
-import Control.Monad        (ap)
+import Control.Monad        (ap, void)
 import Control.Monad.Module (Module (..))
 import Data.Bifoldable      (Bifoldable (..))
 import Data.Bifunctor       (Bifunctor (..))
@@ -16,10 +18,17 @@ import Data.Coerce          (coerce)
 import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.String          (IsString (..))
 
+import qualified Data.Text       as T
+import qualified Data.Text.Short as TS
+
 import OL1.Error
 import OL1.Name
 import OL1.Pretty
 import OL1.Type
+
+import OL1.Syntax
+import OL1.Syntax.Sym
+import OL1.Syntax.ToSyntax
 
 -- | 'Intro' has a normal deduction, \(A\!\uparrow\).
 data Intro b a
@@ -52,59 +61,49 @@ instance Functor (Intro' a) where
 instance Functor (Elim b) where
     fmap = second
 
-instance Applicative (Intro b) where
+instance Pretty b => Applicative (Intro b) where
     pure = VCoerce . pure
     (<*>) = ap
 
-instance Monad (Intro b) where
+instance Pretty b => Monad (Intro b) where
     return = pure
 
     (>>=) :: forall a c. Intro b a -> (a -> Intro b c) -> Intro b c
     VLam n b         >>= k = VLam n (b >>>= k)
     VCoerce u        >>= k = valueAppBind u k
     VErr err         >>= _ = VErr err
-    VLamTy n b       >>= k = VLamTy n $ (overScopeH . overIntro') (>>= k') b where
+    VLamTy n b       >>= k = undefined n b k
+
+{- VLamTy n $ (overScopeH . overIntro') (>>= k') b where
         k' :: a -> Intro (Var N (Mono b)) c
         k' = first (return . return) . k
+-}
 
-overScopeH
-    :: (f (Var b (m a)) -> f' (Var b' (m' a')))
-    -> ScopeH b f m a -> ScopeH b' f' m' a'
-overScopeH f (ScopeH s) = ScopeH (f s)
+valueAppBind :: Pretty b => Elim b a -> (a -> Intro b c) -> Intro b c
+valueAppBind (VVar a) k     = k a
+valueAppBind (VApp f x) k   = valueApp (valueAppBind f k) (x >>= k)
+valueAppBind (VAppTy f t) k = valueAppTy (valueAppBind f k) t
 
-valueAppBind :: Elim b a -> (a -> Intro b c) -> Intro b c
-valueAppBind (VVar a) k = k a
-valueAppBind (VApp f x) k = case valueAppBind f k of
-    VCoerce f'  -> VCoerce (VApp f' (x >>= k))
-    VErr err    -> VErr err
-    VLam _n  f' -> instantiate1 (x >>= k) f'
-    f'          -> VErr $ ApplyPanic (ppr (bivoid f'))
-valueAppBind (VAppTy f t) k = case valueAppBind f k of
-    VCoerce f'   -> VCoerce (VAppTy f' t)
-    VErr err     -> VErr err
-    VLamTy _n f' -> unIntro' $ instantiate1H t f'
-    f'           -> VErr $ ApplyPanic (ppr (bivoid f'))
-
-bivoid :: Bifunctor f => f a b -> f () ()
-bivoid = bimap (const ()) (const ())
-
-instance Applicative (Elim b) where
+instance Pretty b => Applicative (Elim b) where
     pure = VVar
     (<*>) = ap
 
-instance Monad (Elim b) where
+instance Pretty b => Monad (Elim b) where
     return = pure
 
     VVar x     >>= k = k x
     VApp f x   >>= k = VApp (f >>= k) (valueBind x k)
     VAppTy x t >>= k = VAppTy (x >>= k) t
 
-valueBind :: Intro b a -> (a -> Elim b c) -> Intro b c
+valueBind :: Pretty b => Intro b a -> (a -> Elim b c) -> Intro b c
 valueBind (VCoerce e)  k = VCoerce (e >>= k)
 valueBind (VLam n b)   k = VLam n (b >>>= VCoerce . k)
 valueBind (VErr err)   _ = VErr err
-valueBind (VLamTy n (ScopeH (Intro' b))) k = VLamTy n $ ScopeH $ Intro' $
-    valueBind b $ first (return . return) . k
+valueBind (VLamTy n b) k = VLamTy n $ toScopeH
+    $ Intro'
+    $ flip valueBind (first F . k)
+    $ unIntro'
+    $ fromScopeH b
 
 instance Module (Intro' a) Mono where
     Intro' i >>== k = Intro' (bindIntroMono i k)
@@ -113,14 +112,16 @@ bindIntroMono :: Intro b a -> (b -> Mono c) -> Intro c a
 bindIntroMono (VErr err)   _ = VErr err
 bindIntroMono (VCoerce c)  k = VCoerce (bindElimMono c k)
 bindIntroMono (VLam n b)   k = VLam n $ hoistScope (`bindIntroMono` k) b
-bindIntroMono (VLamTy n b) k = VLamTy n $ (overScopeH . overIntro') (`bindIntroMono` k') b where
-    k' (B y) = T (B y)
-    k' (F x) = fmap (F . k) x
-
+bindIntroMono (VLamTy n b) k = VLamTy n $ b >>== k
+ 
 bindElimMono :: Elim b a -> (b -> Mono c) -> Elim c a
 bindElimMono (VVar x)     _ = VVar x
 bindElimMono (VApp f x)   k = VApp (bindElimMono f k) (bindIntroMono x k)
 bindElimMono (VAppTy x t) k = VAppTy (bindElimMono x k) (t >>= k)
+
+-------------------------------------------------------------------------------
+-- Bi*
+-------------------------------------------------------------------------------
 
 instance Bifunctor  Elim   where bimap = bimapDefault
 instance Bifunctor  Intro  where bimap = bimapDefault
@@ -144,28 +145,35 @@ instance Bitraversable Elim where
 --
 -- Note that '@@' from "Language.PTSmart" module is different
 valueApp
-    :: Intro b a  -- ^ f : a -> b
+    :: Pretty b
+    => Intro b a  -- ^ f : a -> b
     -> Intro b a  -- ^ x : a
     -> Intro b a  -- ^ _ : b
-valueApp f x = do
-    b <- VCoerce $ VApp (VVar True) (return False)
-    if b then f else x
+valueApp (VCoerce f) x = VCoerce (VApp f x)
+valueApp (VErr err)  _ = VErr err
+valueApp (VLam _ b)  x = instantiate1 x b
+valueApp f           _ = VErr (ApplyPanic (ppr (void f)))
 
-valueAppTy 
-    :: Intro b a
+valueAppTy
+    :: Pretty b
+    => Intro b a
     -> Mono b
     -> Intro b a
-valueAppTy = undefined
+valueAppTy (VCoerce x)  t = VCoerce (VAppTy x t)
+valueAppTy (VErr err)   _ = VErr err
+valueAppTy (VLamTy _ b) t = unIntro' $ instantiate1H t b
+valueAppTy f            _ = VErr (ApplyPanic (ppr (void f)))
 
 -------------------------------------------------------------------------------
 -- Eq
 -------------------------------------------------------------------------------
 
 instance Eq b => Eq1 (Intro b) where
-    liftEq eq (VCoerce x) (VCoerce x')     = liftEq eq x x'
-    liftEq eq (VLam _ x)  (VLam _  x')     = liftEq eq x x'
-    liftEq eq (VLamTy _ (ScopeH (Intro' x)))
-              (VLamTy _ (ScopeH (Intro' x'))) = liftEq eq x x'
+    liftEq eq (VCoerce x)  (VCoerce x')  = liftEq eq x x'
+    liftEq eq (VLam _ x)   (VLam _  x')  = liftEq eq x x'
+    liftEq eq (VLamTy _ b) (VLamTy _ b') = liftEq eq
+        (unIntro' $ fromScopeH b)
+        (unIntro' $ fromScopeH b')
 
     -- Errors are inequal
     liftEq _  (VErr _) (VErr _) = False
@@ -214,6 +222,35 @@ pprElim :: Elim Doc Doc -> MDoc
 pprElim (VVar a)     = ppr a
 pprElim (VApp f x)   = sexpr (pprElim f) [pprIntro x]
 pprElim (VAppTy x t) = sexpr (pprElim x) [pprChar '@' <> pprMono t]
+
+-------------------------------------------------------------------------------
+-- ToSyntax
+-------------------------------------------------------------------------------
+
+instance (a ~ Sym, b ~ Sym) => ToSyntax (Intro a b) where
+    toSyntax = toSyntax'
+
+toSyntax' :: Intro Sym Sym -> SyntaxM
+toSyntax' (VErr _err) = error "some error!"
+toSyntax' (VCoerce x) = toSyntax x
+toSyntax' (VLam n b)  = freshen (nToSym n) $ \s ->
+    srlist RFn
+        [ toSyntax $ instantiate1 (return s) b
+        ]
+toSyntax' (VLamTy n b)  = freshen (nToSym n) $ \s ->
+    srlist' RFn
+        [ At <$> toSyntax s
+        , At <$> toSyntax s
+         , fmap At $ toSyntax $ unIntro' $ instantiate1H (return (Sym "foo")) b
+        ]
+
+instance (a ~ Sym, b ~ Sym) => ToSyntax (Elim a b) where
+    toSyntax (VVar v)   = ssym v
+    toSyntax (VApp f x) = slist (toSyntax f) [toSyntax x]
+    toSyntax (VAppTy x t) = slist' (toSyntax x) [At <$> toSyntax t]
+
+nToSym :: N -> Sym
+nToSym (N s) = Sym (TS.pack (T.unpack s))
 
 -------------------------------------------------------------------------------
 -- Smart

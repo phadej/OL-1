@@ -1,9 +1,5 @@
 module OL1.Syntax.ToSyntax where
 
--- import Bound.Scope.Simple         (Scope (..))
--- import Bound.ScopeH               (ScopeH (..))
--- import Bound.ScopeT               (ScopeT (..))
-
 import Bound.Var                  (Var (..))
 import Control.Monad.State.Strict
 import Control.Unification.Rigid  (MetaVar (..), UTerm (..))
@@ -15,6 +11,7 @@ import Data.Void                  (Void, absurd)
 import qualified Data.Set        as Set
 import qualified Data.Text.Short as T
 
+import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 import OL1.Syntax.Type
 
@@ -64,19 +61,34 @@ toSyntax1 = liftToSyntax toSyntax
 
 -- | Make fresh symbol variant.
 freshen :: Sym -> (Sym -> Printer a) -> Printer a
-freshen (Sym s) f = Printer $ do
+freshen s@(Sym _) f = f s
+{- Printer $ do
     xs <- get
     let u = freshU xs (genU (toU s))
     put (Set.insert u xs)
     x <- unPrinter (f (fromString (fromU u)))
     modify' (Set.delete u)
     return x
+-}
 
 -------------------------------------------------------------------------------
 -- Combinators
 -------------------------------------------------------------------------------
 
--- TODO: Reserved
+ssym :: Sym -> SyntaxM
+ssym = return . SSym
+
+slist :: SyntaxM -> [SyntaxM] -> SyntaxM
+slist f = slist' f . map (fmap Juxta)
+
+slist' :: SyntaxM -> [Printer AppSyntax] -> SyntaxM
+slist' f xs = SList <$> f <*> sequenceA xs
+
+srlist :: Reserved -> [SyntaxM] -> SyntaxM
+srlist r = srlist' r . map (fmap Juxta)
+
+srlist' :: Reserved -> [Printer AppSyntax] -> SyntaxM
+srlist' r xs = SRList r <$> sequenceA xs
 
 -------------------------------------------------------------------------------
 -- U

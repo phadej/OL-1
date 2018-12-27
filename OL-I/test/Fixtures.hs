@@ -1,15 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
-
-import OL1 hiding ((</>))
-
-import OL1.Syntax.FromSyntax (runParser, fromSyntax)
-import OL1.Syntax.Parser     (parseSyntax)
-import OL1.Syntax.Pretty     (syntaxToString)
-import OL1.Syntax.Sugar      (desugar)
-import OL1.Syntax.Sym        (Sym)
 
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Writer (Writer, execWriter, tell)
+import Data.Bifunctor       (first)
+import Data.List            (sort)
 import System.Directory     (listDirectory)
 import System.FilePath      (takeExtension, (-<.>), (</>))
 import Test.Tasty           (TestTree, defaultMain, testGroup)
@@ -20,10 +15,19 @@ import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import qualified Data.ByteString.UTF8       as UTF8
 
+import OL1 hiding ((</>))
+
+import OL1.Syntax.FromSyntax (fromSyntax, runParser)
+import OL1.Syntax.Parser     (parseSyntax)
+import OL1.Syntax.Pretty     (syntaxToString)
+import OL1.Syntax.Sugar      (desugar)
+import OL1.Syntax.Sym        (Sym)
+-- import OL1.Syntax.ToSyntax   (runPrinter, toSyntax)
+
 main :: IO ()
 main = do
     dirContents <- listDirectory "fixtures"
-    let cases = fmap mkCase $ filter (\fp -> takeExtension fp == ".ol1") dirContents
+    let cases = map mkCase $ sort $ filter (\fp -> takeExtension fp == ".ol1") dirContents
     defaultMain $ testGroup "Fixtures" cases
 
 -------------------------------------------------------------------------------
@@ -47,8 +51,23 @@ mkCase name = goldenVsStringDiff name diff output $ do
         tellString $ syntaxToString s1
 
         header "FROMSYNTAX"
-        expr <- either throwError pure $ runParser (fromSyntax s1) :: M (Chk Sym Sym)
-        tellString $ pretty expr
+        expr0 <- either throwError pure $ runParser (fromSyntax s1) :: M (Chk Sym Sym)
+        tellString $ pretty expr0
+
+        header "INFERED"
+        (expr1, _ws) <- either (throwError . pretty) pure $ synth
+            ctx
+            (Ann (first Just expr0) (Mono $ T Nothing))
+        tellString $ pretty expr1
+
+        header "CHECKED"
+        (_val, ty) <- either (throwError . pretty) pure $ infer
+            ctx
+            expr1
+        tellString $ pretty ty
+
+        header "EVALED"
+        -- tellString $ syntaxToString $ runPrinter $ toSyntax val
 
   where
     input  = "fixtures" </> name -<.> "ol1"
@@ -73,5 +92,11 @@ mkCase name = goldenVsStringDiff name diff output $ do
         ]
 
     diff ref new = ["diff", "-u", ref, new]
+
+    ctx :: Sym -> Maybe (Poly Sym)
+    ctx "f" = Just $ Mono ("A" :-> "B")
+    ctx "x" = Just $ Mono "A"
+
+    ctx _ = Nothing
 
 type M = ExceptT String (Writer [BS.ByteString])

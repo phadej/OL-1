@@ -231,8 +231,10 @@ pprChk (LamTy n b) = pprScopedC n $ \n' ->
 
 -- | TODO the context
 instance (a ~ Sym, b ~ Sym) => FromSyntax (Inf b a) where
-    fromSyntax (SSym s)         = return (V s)
-    fromSyntax (SList f [At x]) = App <$> fromSyntax f <*> fromSyntax x
+    fromSyntax (SSym s)            = return (V s)
+    fromSyntax (SList f [Juxta x]) = App <$> fromSyntax f <*> fromSyntax x
+    fromSyntax (SRList RThe [Juxta t, Juxta x]) =
+        Ann <$> fromSyntax x <*> fromSyntax t
 
     fromSyntax s = failure $ "not inf: " ++ syntaxToString s
 

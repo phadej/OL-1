@@ -13,7 +13,7 @@ import OL1.Syntax.Sym
 
 data Syntax
     = SSym Sym
-    | SNil
+    | SNil -- combine this and next
     | SList Syntax [AppSyntax]
     | SRList Reserved [AppSyntax]
   deriving (Eq, Show)
