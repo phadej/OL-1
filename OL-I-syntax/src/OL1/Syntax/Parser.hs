@@ -4,20 +4,22 @@ module OL1.Syntax.Parser (
     parseSyntaxes,
     ) where
 
-import Control.Applicative (many, some, (<|>))
+import Control.Applicative (Alternative (..))
 import Data.String         (fromString)
+import Data.Char (isSpace)
 import Text.Trifecta
-       (Parser, Result (..), eof, highlight, choice, parens, parseByteString, satisfy,
-       token, whiteSpace, _errDoc, char, string)
+       (CharParsing, skipSome, manyTill, Parser, Parsing, Result (..), TokenParsing (..), char,
+       choice, eof, highlight, parens, parseByteString, satisfy, string, token,
+       whiteSpace, _errDoc)
 import Text.Trifecta.Delta (Delta (Directed))
 
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.UTF8        as UTF8
-import qualified Text.Parser.Token.Highlight as H
+import qualified Data.ByteString              as BS
+import qualified Data.ByteString.UTF8         as UTF8
+import qualified Text.Parser.Token.Highlight  as H
 import qualified Text.PrettyPrint.ANSI.Leijen as A
 
-import OL1.Syntax.Sym
 import OL1.Syntax.Reserved
+import OL1.Syntax.Sym
 import OL1.Syntax.Type
 
 syntaxFromString :: String -> Either String Syntax
@@ -25,7 +27,7 @@ syntaxFromString = parseSyntax "<input>" . UTF8.fromString
 
 parseSyntax :: FilePath -> BS.ByteString -> Either String Syntax
 parseSyntax fp bs =
-    case parseByteString (whiteSpace *> syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
+    case parseByteString (runP $ whiteSpace *> syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
         Success sy  -> Right sy
         Failure err -> Left $ show' $ _errDoc err
 
@@ -42,26 +44,38 @@ stripSGR (A.SSGR _ d)    = stripSGR d
 
 parseSyntaxes :: FilePath -> BS.ByteString -> Either String [Syntax]
 parseSyntaxes fp bs =
-    case parseByteString (whiteSpace *> many syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
+    case parseByteString (runP $ whiteSpace *> many syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
         Success sy  -> Right sy
         Failure err -> Left $ show' $ _errDoc err
 
-syntaxP :: Parser Syntax
+syntaxP :: P Syntax
 syntaxP = choice
     [ SSym <$> symP
     , char '@' *> (SAt <$> syntaxP)
     , parens (listP <|> pure (SList []))
     ]
   where
-    listP :: Parser Syntax
+    listP :: P Syntax
     listP = (SRList <$> reservedP <|> pure SList) <*> many syntaxP
 
-reservedP :: Parser Reserved
+reservedP :: P Reserved
 reservedP = choice
     [ token $ highlight H.ReservedIdentifier $ r <$ string (reservedToString r)
     | r <- [ minBound .. maxBound ]
     ]
 
-symP :: Parser Sym
+symP :: P Sym
 symP = token $ highlight H.Symbol $ fromString <$> some symCharP where
     symCharP = satisfy isSymChar
+
+newtype P a = P { runP :: Parser a }
+  deriving newtype (Functor, Applicative, Alternative, Parsing, CharParsing)
+
+instance TokenParsing P where
+    someSpace = P $ skipSome $ satisfy isSpace <|> commentP
+
+    nesting     = P . nesting . runP
+    highlight h = P . highlight h . runP
+
+commentP :: Parser Char
+commentP = char ';' <* manyTill (satisfy (/= '\n')) (char '\n')
