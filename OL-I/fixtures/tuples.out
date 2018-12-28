@@ -1,0 +1,104 @@
+=== INPUT ===================================================================
+; unit is 0-tuple
+(define tt (tuple))
+
+; let's make a function to make pairs
+(define pair (fn (a b) (tuple a b)))
+
+; an example of pairs, output will be a bit funny :)
+(pair tt (pair tt tt))
+
+; pairs are symmetric ...
+(define swap (fn (p) (split p (x y) (tuple y x))))
+
+; ... which we can see from evaluated version of following:
+(fn (x y) (swap (swap (tuple x y))))
+
+=== PARSED 1 ================================================================
+(define tt (tuple))
+
+=== DEFINE ==================================================================
+(tuple)
+
+=== INFERRED ================================================================
+(the (tuple) (tuple))
+
+=== PARSED 2 ================================================================
+(define pair (fn (a b) (tuple a b)))
+
+=== DEFINE ==================================================================
+(fn (a b) (tuple a b))
+
+=== EXPANDED ================================================================
+(fn (a b) (tuple a b))
+
+=== INFERRED ================================================================
+(the (-> @t @t1 t t1 (tuple t t1)) (fn (@t @t1 a b) (tuple a b)))
+
+=== PARSED 3 ================================================================
+(pair tt (pair tt tt))
+
+=== EVALUATE ================================================================
+(pair tt (pair tt tt))
+
+=== EXPANDED ================================================================
+((the (-> @t @t1 t t1 (tuple t t1)) (fn (@t @t1 a b) (tuple a b)))
+   (the (tuple) (tuple))
+   ((the (-> @t @t1 t t1 (tuple t t1)) (fn (@t @t1 a b) (tuple a b)))
+      (the (tuple) (tuple)) (the (tuple) (tuple))))
+
+=== INFERRED ================================================================
+((the (-> @t @t1 t t1 (tuple t t1)) (fn (@t @t1 a b) (tuple a b)))
+   @(tuple)
+   @(tuple (tuple) (tuple))
+   (the (tuple) (tuple))
+   ((the (-> @t @t1 t t1 (tuple t t1)) (fn (@t @t1 a b) (tuple a b)))
+      @(tuple) @(tuple) (the (tuple) (tuple)) (the (tuple) (tuple))))
+
+=== CHECKED TYPE ============================================================
+(tuple (tuple) (tuple (tuple) (tuple)))
+
+=== EVALUATED VALUE =========================================================
+(tuple (tuple) (tuple (tuple) (tuple)))
+
+=== PARSED 4 ================================================================
+(define swap (fn (p) (split p (x y) (tuple y x))))
+
+=== DEFINE ==================================================================
+(fn (p) (split p (x y) (tuple y x)))
+
+=== EXPANDED ================================================================
+(fn (p) (split p (x y) (tuple y x)))
+
+=== INFERRED ================================================================
+(the (-> @t @t1 (tuple t t1) (tuple t1 t))
+     (fn (@t @t1 p) (split p (x y) (tuple y x))))
+
+=== PARSED 5 ================================================================
+(fn (x y) (swap (swap (tuple x y))))
+
+=== EVALUATE ================================================================
+(fn (x y) (swap (swap (tuple x y))))
+
+=== EXPANDED ================================================================
+(fn (x y) ((the (-> @t @t1 (tuple t t1) (tuple t1 t))
+                (fn (@t @t1 p) (split p (x1 y1) (tuple y x))))
+             ((the (-> @t @t1 (tuple t t1) (tuple t1 t))
+                   (fn (@t @t1 p) (split p (x1 y1) (tuple y x))))
+                (tuple x y))))
+
+=== INFERRED ================================================================
+(the (-> @t @t1 t t1 (tuple t t1))
+     (fn (@t @t1 x y)
+         ((the (-> @t2 @t3 (tuple t2 t3) (tuple t3 t2))
+               (fn (@t2 @t3 p) (split p (x1 y1) (tuple y x))))
+            @t1 @t ((the (-> @t2 @t3 (tuple t2 t3) (tuple t3 t2))
+                         (fn (@t2 @t3 p) (split p (x1 y1) (tuple y x))))
+                      @t @t1 (tuple x y)))))
+
+=== CHECKED TYPE ============================================================
+(-> @t @t1 t t1 (tuple t t1))
+
+=== EVALUATED VALUE =========================================================
+(fn (@t @t1 (the t x) (the t1 y)) (tuple x y))
+

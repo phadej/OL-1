@@ -1,0 +1,14 @@
+; unit is 0-tuple
+(define tt (tuple))
+
+; let's make a function to make pairs
+(define pair (fn (a b) (tuple a b)))
+
+; an example of pairs, output will be a bit funny :)
+(pair tt (pair tt tt))
+
+; pairs are symmetric ...
+(define swap (fn (p) (split p (x y) (tuple y x))))
+
+; ... which we can see from evaluated version of following:
+(fn (x y) (swap (swap (tuple x y))))

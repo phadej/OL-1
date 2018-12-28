@@ -1,0 +1,13 @@
+=== INPUT ===================================================================
+; Tuples of different size
+(fn (a b) (split (tuple a b) (x) x))
+
+=== PARSED 1 ================================================================
+(fn (a b) (split (tuple a b) (x) x))
+
+=== EVALUATE ================================================================
+(fn (a b) (split (the ? (tuple a b)) (x) x))
+
+=== INFERRED ================================================================
+ERROR
+error: Couldn't match expected type (tuple ?8) with actual type (tuple ?6 ?7)
