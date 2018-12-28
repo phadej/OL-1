@@ -1,13 +1,16 @@
 all :
 	cabal new-build all
 
-golden :
-	cabal new-build golden
-	(cd ol1 && $$(cabal-plan list-bin golden))
+fixtures :
+	cabal new-build fixtures
+	(cd OL-I && $$(cabal-plan list-bin fixtures))
 
-golden-accept :
-	cabal new-build golden
-	(cd ol1 && $$(cabal-plan list-bin golden) --accept)
+fixtures-accept :
+	cabal new-build fixtures
+	(cd OL-I && $$(cabal-plan list-bin fixtures) --accept)
+
+ghcid-OL-I :
+	ghcid -c 'cabal new-repl OL-I'
 
 doctest :
 	doctest \
