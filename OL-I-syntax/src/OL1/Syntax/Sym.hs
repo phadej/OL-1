@@ -3,6 +3,7 @@ module OL1.Syntax.Sym where
 import Data.Char       (isPrint, isSeparator)
 import Data.String     (IsString (..))
 import Data.Text.Short (ShortText)
+import Data.Fin (Fin)
 
 import qualified Data.Text.Short as T
 import qualified Test.QuickCheck as QC
@@ -34,15 +35,26 @@ instance QC.Arbitrary Sym where
             , not (null ys)
             ]
 
--- | Irrelevant symbol, are all equal
-newtype ISym = ISym Sym 
+newtype Irr a = Irr a
   deriving (Show)
 
-instance IsString ISym where
-    fromString = ISym . fromString
+instance IsString a => IsString (Irr a) where
+    fromString = Irr . fromString
 
-instance Eq ISym where
+instance Eq (Irr a) where
     _ == _ = True
 
-instance Ord ISym where
+instance Ord (Irr a) where
     compare _ _ = EQ
+
+-- | Irrelevant symbol, are all equal
+type ISym = Irr Sym
+
+data NSym n = NSym (Fin n) Sym
+  deriving Show
+
+instance Eq (NSym n) where
+    NSym n _ == NSym n' _ = n == n'
+
+instance Ord (NSym n) where
+    compare (NSym n _) (NSym n' _) = compare n n'

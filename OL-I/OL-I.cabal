@@ -51,10 +51,12 @@ library
     , base-compat        ^>=0.10.5
     , bound              ^>=2.0.1
     , bound-extras       ^>=0
+    , fin                ^>=0.0.1
     , OL-I-syntax        ^>=1
     , pretty-compact     ^>=3.0
     , recursion-schemes  ^>=5.1
     , unification-rigid  ^>=0
+    , vec                ^>=0.1
 
   -- tmp
   build-depends:      text-short
@@ -66,6 +68,8 @@ library
     OL1.Synth
     OL1.Type
     OL1.Value
+
+  other-modules:      OL1.Internal
 
 test-suite fixtures
   type:               exitcode-stdio-1.0

@@ -15,16 +15,14 @@ import Data.Functor.Foldable     (Base, Corecursive (..), Recursive (..))
 import Data.String               (IsString (..))
 
 import OL1.Syntax
-import OL1.Syntax.Sym
 
 data Mono a
     = T a
     | Mono a :-> Mono a
-    -- TODO: Record
+    | Tuple [Mono a]
   deriving (Functor, Foldable, Traversable)
 
-infixr 0 :->
-infixr 0 :=>
+infixr 0 :->, :=>
 
 data Poly a
     = Mono (Mono a)
@@ -41,6 +39,7 @@ instance Applicative Mono where
 instance Monad Mono where
     T a >>= k       = k a
     (a :-> b) >>= k = (a >>= k) :-> (b >>= k)
+    Tuple as  >>= k = Tuple (map (>>= k) as)
 
 instance Module Poly Mono where
     Mono x     >>== k = Mono (x >>= k)
@@ -52,11 +51,13 @@ instance Module Poly Mono where
 
 instance Eq1 Mono where
     liftEq eq = go where
-        go (T a) (T a')          = eq a a'
+        go (T a)     (T a')      = eq a a'
         go (a :-> b) (a' :-> b') = go a a' && go b b'
+        go (Tuple x) (Tuple x')  = liftEq go x x'
 
         go T     {} _ = False
         go (:->) {} _ = False
+        go Tuple {} _ = False
 
 instance Eq1 Poly where
     liftEq eq (Mono a)     (Mono a')     = liftEq eq a a'
@@ -80,6 +81,9 @@ instance Show1 Mono where
         $ liftShowsPrec sp sl 1 a
         . showString " :-> "
         . liftShowsPrec sp sl 0 b
+    liftShowsPrec sp sl d (Tuple x) = showsUnaryWith
+        (liftShowsPrec (liftShowsPrec sp sl) (liftShowList sp sl))
+        "Tuple" d x
 
 instance Show1 Poly where
     liftShowsPrec sp sl d (Mono x) = showsUnaryWith
@@ -100,6 +104,7 @@ instance Show a => Show (Poly a) where showsPrec = showsPrec1
 data MonoF a b
     = TF a
     | b :=> b
+    | TupleF [b]
   deriving (Functor, Foldable, Traversable)
 
 type instance Base (Mono a) = MonoF a
@@ -107,26 +112,31 @@ type instance Base (Mono a) = MonoF a
 instance Recursive (Mono a) where
     project (T a)     = TF a
     project (a :-> b) = a :=> b
+    project (Tuple x) = TupleF x
 
 instance Corecursive (Mono a) where
-    embed (TF a)    = T a
-    embed (a :=> b) = a :-> b
+    embed (TF a)     = T a
+    embed (a :=> b)  = a :-> b
+    embed (TupleF x) = Tuple x
 
 instance Bifunctor MonoF where bimap = bimapDefault
 instance Bifoldable MonoF where bifoldMap = bifoldMapDefault
 
 instance Bitraversable MonoF where
-    bitraverse f _ (TF a)    = TF <$> f a
-    bitraverse _ g (a :=> b) = (:=>) <$> g a <*> g b
+    bitraverse f _ (TF a)     = TF <$> f a
+    bitraverse _ g (a :=> b)  = (:=>) <$> g a <*> g b
+    bitraverse _ g (TupleF x) = TupleF <$> traverse g x
 
 instance Eq a => Unifiable (MonoF a) where
     zipMatch (TF a)       (TF b)
         | a == b    = Just (TF a)
         | otherwise = Nothing
-    zipMatch (a :=> b)    (c :=> d) = Just (Right (a, c) :=> Right (b, d))
+    zipMatch (a :=> b)  (c :=> d)  = Just (Right (a, c) :=> Right (b, d))
+    zipMatch (TupleF x) (TupleF y) = TupleF <$> zipMatch x y
 
     zipMatch TF     {} _ = Nothing
     zipMatch (:=>)  {} _ = Nothing
+    zipMatch TupleF {} _ = Nothing
 
 -------------------------------------------------------------------------------
 -- ToSyntax
@@ -145,8 +155,9 @@ toSyntaxMono :: Mono Syntax -> Printer Syntax
 toSyntaxMono = cata toSyntaxMonoF
 
 toSyntaxMonoF :: MonoF Syntax (Printer Syntax) -> Printer Syntax
-toSyntaxMonoF (TF a)    = return a
-toSyntaxMonoF (a :=> b) = sarrow a b
+toSyntaxMonoF (TF a)     = return a
+toSyntaxMonoF (a :=> b)  = sarrow a b
+toSyntaxMonoF (TupleF b) = stuple b
 
 toSyntaxPoly :: Poly Syntax -> Printer Syntax
 toSyntaxPoly (Mono a)     = toSyntaxMono a
@@ -159,11 +170,12 @@ toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
 -------------------------------------------------------------------------------
 
 instance a ~ Sym => FromSyntax (Mono a) where
-    fromSyntax (SRList RFnType [])     = failure "empty fn-type" -- TODO: unit?
+    fromSyntax (SRList RFnType [])     = return (Tuple [])
     fromSyntax (SRList RFnType [a])    = fromSyntax a
     fromSyntax (SRList RFnType (a:bs)) = do
         bs' <- fromSyntax (SRList RFnType bs)
         (:->) <$> fromSyntax a <*> pure bs'
+    fromSyntax (SRList RTuple xs)     = Tuple <$> traverse fromSyntax xs
 
     fromSyntax s = T <$> fromSyntax s
 
@@ -176,16 +188,7 @@ fromSyntaxPoly s xs = do
     ys <- fromSyntax (SRList RFnType xs)
     return $ Forall s' $ abstractHEither k ys
   where
-    s' = ISym s
+    s' = Irr s
 
     k n | n == s    = Left s'
         | otherwise = Right n
-
--------------------------------------------------------------------------------
--- Utilities
--------------------------------------------------------------------------------
-
-peelArrow :: Mono a -> ([Mono a], a)
-peelArrow (T a) = ([], a)
-peelArrow (a :-> b) = case peelArrow b of
-    ~(xs, x) -> (a : xs, x)

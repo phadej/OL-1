@@ -24,10 +24,14 @@ data Err
       -- ^ Lambda is (annotated with) not an arrow type
     | PolyNotForall Syntax Syntax [Syntax]
       -- ^ type abstraction is (annotated with) not a polymorphic type
+    | PairNotProd Syntax Syntax [Syntax]
+      -- ^ Pair is annotated with not a product type
     | NotAFunction Syntax Syntax Syntax [Syntax]
       -- ^ apply warning in 'Term' type-checker.
     | NotAPolyFunction Syntax Syntax Syntax [Syntax]
       -- ^ type apply warning in 'Term' type-checker.
+    | NotATuple Syntax Syntax [Syntax]
+      -- ^ fst/snd  warning in 'Term' type-checker.
     | ApplyPanic Syntax
       -- ^ apply panic in 'Value' evaluator
     | OccursFailure Syntax Syntax
@@ -78,6 +82,11 @@ prettyErr (LambdaNotArrow t term ctx) = ppCheckedTerms ctx $
   where
     err = "The lambda expression" <+> prettySyntax term <+> "doesn't have an arrow type"
     ann = "Annotated with" <+> prettySyntax t
+prettyErr (PairNotProd t term ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ ann
+  where
+    err = "The tuple expression" <+> prettySyntax term <+> "doesn't have a tuple type"
+    ann = "Annotated with" <+> prettySyntax t
 prettyErr (PolyNotForall t term ctx) = ppCheckedTerms ctx $
     "error:" </> err $$ ann
   where
@@ -95,7 +104,12 @@ prettyErr (NotAPolyFunction t f x ctx) = ppCheckedTerms ctx $
     err = "Couldn't match actual type" <+> prettySyntax t <+> "with a type abstraction"
     f' = "In the type application of" <+> prettySyntax f
     x' = "to the type" <+> prettySyntax x
-
+prettyErr (NotATuple t x ctx) = ppCheckedTerms ctx $
+    "error:" </> err $$ f' $$ x'
+  where
+    err = "Couldn't match actual type" <+> prettySyntax t <+> "with a tuple type"
+    f' = "In the type application of fst or snd"
+    x' = "to the value" <+> prettySyntax x
 prettyErr (ApplyPanic f) =
     "panic:" </> err
   where

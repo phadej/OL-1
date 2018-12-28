@@ -1,12 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 module OL1.Syntax.ToSyntax where
 
 import Bound.Var                  (Var (..))
-import Control.Monad.State.Strict (State, evalState, modify', get, put)
+import Control.Applicative        (liftA2)
+import Control.Monad.State.Strict (State, evalState, get, put)
 import Control.Unification.Rigid  (MetaVar (..), UTerm (..))
 import Data.Char                  (isDigit)
-import Control.Applicative (liftA2)
+import Data.Functor.Identity      (Identity (..))
 import Data.String                (IsString (..))
 import Data.Text.Short            (ShortText)
+import Data.Traversable           (for)
 import Data.Void                  (Void, absurd)
 
 import qualified Data.Set        as Set
@@ -44,8 +47,11 @@ class ToSyntax1 f where
 instance ToSyntax Sym where
     toSyntax = return . SSym
 
-instance ToSyntax ISym where
-    toSyntax (ISym s) = return (SSym s)
+instance ToSyntax (NSym n) where
+    toSyntax (NSym _ s) = toSyntax s
+
+instance ToSyntax a => ToSyntax (Irr a) where
+    toSyntax (Irr a) = toSyntax a
 
 instance ToSyntax Syntax where
     toSyntax = return
@@ -68,16 +74,23 @@ toSyntax1 = liftToSyntax toSyntax
 
 -- | Make fresh symbol variant.
 freshen :: Sym -> (Sym -> Printer a) -> Printer a
-freshen (Sym s) f = Printer $ do
+freshen s f = freshenMany (Identity s) (f . runIdentity)
+
+freshenMany :: Traversable t => t Sym -> (t Sym -> Printer a) -> Printer a
+freshenMany ss f = Printer $ do
     xs <- get
-    let u = freshU xs (genU (toU s))
-    put (Set.insert u xs)
-    x <- unPrinter (f (fromString (fromU u)))
-    modify' (Set.delete u)
+    us <- for ss $ \(Sym s) -> do
+        xs' <- get
+        let u = freshU xs' (genU (toU s))
+        put (Set.insert u xs)
+        return (fromString (fromU u))
+
+    x <- unPrinter (f us)
+    put xs
     return x
 
 freshenI :: ISym -> (Sym -> Printer a) -> Printer a
-freshenI (ISym s) = freshen s
+freshenI (Irr s) = freshen s
 
 -------------------------------------------------------------------------------
 -- Combinators
@@ -133,6 +146,13 @@ spoly = liftA2 impl where
     impl x (SRList RFn [SList xs, b]) = SRList RFn [SList (SAt x:xs), b]
     impl x b                          = SRList RFn [SList [SAt x], b]
 
+stuple :: [SyntaxM] -> SyntaxM
+stuple = fmap (SRList RTuple) . sequenceA
+
+scase :: SyntaxM -> [SyntaxM] -> SyntaxM -> SyntaxM
+scase x xs y = impl <$> x <*> sequenceA xs <*> y where
+    impl a b c = SRList RSplit [a, SList b, c]
+
 snoc :: [a] -> a -> [a]
 snoc xs x = xs ++ [x]
 
@@ -175,9 +195,16 @@ instance ToSyntax () where
 instance ToSyntax Void where
     toSyntax = absurd
 
+instance ToSyntax1 Maybe where
+    liftToSyntax s (Just x) = s x
+    liftToSyntax _ Nothing  = ssym "?"
+
 instance ToSyntax b => ToSyntax1 (Either b) where
     liftToSyntax s (Right x) = s x
     liftToSyntax _ (Left y) = toSyntax y
+
+instance (ToSyntax a) => ToSyntax (Maybe a) where
+    toSyntax = toSyntax1
 
 instance (ToSyntax b, ToSyntax a) => ToSyntax (Either b a) where
     toSyntax = toSyntax1

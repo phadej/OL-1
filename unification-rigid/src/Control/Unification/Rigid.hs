@@ -200,6 +200,20 @@ class Traversable t => Unifiable t where
 
     {-# MINIMAL zipMatch | zipMatch' #-}
 
+instance Unifiable Maybe where
+    zipMatch Nothing  Nothing  = Just Nothing
+    zipMatch (Just a) (Just b) = Just (Just (Right (a, b)))
+    zipMatch Nothing  (Just _) = Nothing
+    zipMatch (Just _) Nothing  = Nothing
+
+instance Unifiable [] where
+    zipMatch []     []     = Just []
+    zipMatch []     (_:_)  = Nothing
+    zipMatch (_:_)  []     = Nothing
+    zipMatch (x:xs) (y:ys) = do
+        zs <- zipMatch xs ys
+        return (Right (x, y) : zs)
+
 -------------------------------------------------------------------------------
 -- Error
 -------------------------------------------------------------------------------

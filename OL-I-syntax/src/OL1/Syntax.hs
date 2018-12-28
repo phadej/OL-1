@@ -2,6 +2,8 @@ module OL1.Syntax (
     -- * Types
     Sym,
     ISym,
+    NSym (..),
+    Irr (..),
     Reserved (..),
     Syntax (..),
     -- * Parsing
@@ -18,12 +20,14 @@ module OL1.Syntax (
     toSyntax1',
     Printer,
     runPrinter,
+    SyntaxM,
     -- ** Low-level combinators
     ssym,
     sat,
     slist,
     srlist,
     freshen,
+    freshenMany,
     freshenI,
     -- ** Higher-level combinators
     sthe,
@@ -33,6 +37,8 @@ module OL1.Syntax (
     sappTy,
     sfn,
     spoly,
+    stuple,
+    scase,
     -- * FromSyntax
     FromSyntax (..),
     runParser,

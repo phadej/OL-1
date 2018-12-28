@@ -3,9 +3,13 @@ module OL1.Check (infer, check) where
 import Bound.Scope.Simple (toScope)
 import Bound.ScopeH
 import Bound.Var          (Var (..))
+import Data.Traversable   (for)
+
+import qualified Data.Vec.Lazy as V
 
 import OL1.Error
 import OL1.Expr
+import OL1.Internal
 import OL1.Syntax
 import OL1.Type
 import OL1.Value
@@ -88,6 +92,22 @@ rcheck ts ctx term t = case term of
             let e' = toScope $ Intro' ee'
             return $ VLamTy n e'
         _ -> Left $ PolyNotForall (toSyntax' t) (toSyntax' term) ts
+    MkTuple xs -> case t of
+        Mono (Tuple xst) | length xs == length xst -> do
+            xs' <- for (zip xs xst) $ \(x, xt) -> rcheck ts' ctx x (Mono xt)
+            return (VTuple xs')
+        _ -> Left $ PairNotProd (toSyntax' t) (toSyntax' term) ts
+    Split x (Irr xs) b -> do
+        (x', xt) <- rinfer ts' ctx x
+        case xt of
+            Mono (Tuple xst) -> case equalLength xst xs of
+                Nothing   -> Left $ SomeErr "tuple dimensions don't match"
+                Just xstv -> do
+                    let bb = fromScopeH b
+                    bb' <- rcheck ts' (addContextN xstv ctx) bb t
+                    let b' = toScope bb'
+                    return $ valueSplit x' (Irr xs) b'
+            _ -> Left $ NotATuple (toSyntax' xt) (toSyntax' x) ts'
   where
     ts' = toSyntax' term : ts
 
@@ -103,3 +123,12 @@ addTyContext
     :: (a -> Maybe (Poly b))   -- ^ context
     -> a -> Maybe (Poly (Var n b))
 addTyContext ctx a = fmap (fmap F) $ ctx a
+
+addContextN
+    :: V.Vec n (Mono b)
+    -> (a -> Maybe (Poly b))
+    -> Var (NSym n) a
+    -> Maybe (Poly b)
+addContextN xs _ctx (B (NSym i _)) = Just (Mono (xs V.! i))
+addContextN _   ctx (F x)          = ctx x
+

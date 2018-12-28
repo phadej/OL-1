@@ -104,19 +104,19 @@ mkCase name = goldenVsStringDiff name diff output $ do
     inference :: Syntax -> M (Inf Sym Sym)
     inference s0 = do
         -- no header
-        expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk Sym Sym)
+        expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk (Maybe Sym) Sym)
         tellString $ pretty expr0
 
         defs <- use defined
         expr1 <- if null defs then return expr0 else do
-            let expr1 = foldr (\(n, e) e' -> e' >>== \n' -> if n == n' then e else return n') expr0 defs
+            let expr1 = foldr (\(n, e) e' -> e' >>== \n' -> if n == n' then first Just e else return n') expr0 defs
             header "EXPANDED"
             tellString $ pretty expr1
             return expr1
 
         header "INFERRED"
-        let toInf (Inf e) = first Just e
-            toInf e       = Ann (first Just e) (Mono $ T Nothing)
+        let toInf (Inf e) = e
+            toInf e       = Ann e (Mono $ T Nothing)
 
         post <- use postulated
         let ctx :: Sym -> Maybe (Poly Sym)

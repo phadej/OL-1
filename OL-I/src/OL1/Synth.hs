@@ -21,9 +21,11 @@ import Data.String               (fromString)
 import Data.Traversable          (for)
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Vec.Lazy   as V
 
 import OL1.Error
 import OL1.Expr
+import OL1.Internal
 import OL1.Syntax
 import OL1.Type
 
@@ -41,6 +43,7 @@ type U b v = UTerm (MonoF b) v
 toU :: Mono (U b v) -> U b v
 toU (T a)     = a
 toU (a :-> b) = UTerm (toU a :=> toU b)
+toU (Tuple x) = UTerm (TupleF (map toU x))
 
 -------------------------------------------------------------------------------
 -- High-level interface
@@ -98,14 +101,13 @@ data Warning a = NotInScope a Syntax
 -------------------------------------------------------------------------------
 
 flattenMono :: U b v -> Mono (Either v b)
-flattenMono (UVar v)             = T (Left v)
-flattenMono (UTerm (TF x))       = T (Right x)
-flattenMono (UTerm (a :=> b))    = flattenMono a :-> flattenMono b
+flattenMono (UVar v)           = T (Left v)
+flattenMono (UTerm (TF x))     = T (Right x)
+flattenMono (UTerm (a :=> b))  = flattenMono a :-> flattenMono b
+flattenMono (UTerm (TupleF x)) = Tuple (map flattenMono x)
 
 flattenMonoDoc :: ToSyntax b => U b v -> Mono (Either v Syntax)
-flattenMonoDoc (UVar v)             = T (Left v)
-flattenMonoDoc (UTerm (TF x))       = T (Right (toSyntax' x))
-flattenMonoDoc (UTerm (a :=> b))    = flattenMonoDoc a :-> flattenMonoDoc b
+flattenMonoDoc = fmap (fmap toSyntax') . flattenMono
 
 flattenPoly :: Poly (U b v) -> Poly (Either v b)
 flattenPoly t = t >>== flattenMono
@@ -153,6 +155,12 @@ generalise x0 t0
         abst (Right _)  = Nothing
 
 -------------------------------------------------------------------------------
+-- Specialise
+-------------------------------------------------------------------------------
+
+-- TBW
+
+-------------------------------------------------------------------------------
 -- Inference
 -------------------------------------------------------------------------------
 
@@ -179,6 +187,8 @@ synInfer ts term = case term of
         case xt of
             Forall _ b -> pure (AppTy x' t, instantiate1H t b)
             _          -> throwError $ NotAPolyFunction (toSyntax' xt) (ppr' x) (toSyntax' t) ts'
+
+
   where
     ppr' term' = toSyntax' $ uncurry (\t x -> sthe (toSyntax t) (toSyntax x)) <$> term'
     pprTerm    = ppr' term
@@ -201,11 +211,15 @@ sysInferApp ts' f ab x = case ab of
     Mono (a :-> b) -> do
         (x', _) <- synCheck ts' x (Mono a)
         pure (App f x', Mono b)
+    Mono t -> throwError $ NotAFunction (toSyntax' t) (toSyntax' f) (ppr' x) ts'
+
     -- If we try to apply to term-apply to a polymorphic function;
     -- we first specialise
     Forall _n ty -> do
         a <- T . UVar <$> freeVar
         sysInferApp ts' (AppTy f a) (instantiate1H a ty) x
+  where
+    ppr' term' = toSyntax' $ uncurry (\t y -> sthe (toSyntax t) (toSyntax y)) <$> term'
 
 -------------------------------------------------------------------------------
 -- Checking
@@ -281,7 +295,8 @@ synCheck ts term ty = case term of
             let e' = instantiateHEither inst e
             (e'', _) <- synCheck ts' e' (Mono b)
             pure (Lam n $ abstractHEither id e'', ty)
-        Forall {} ->  throwError $ PolyNotForall (toSyntax' ty) pprTerm ts
+        Mono _    -> throwError $ LambdaNotArrow (toSyntax' ty) pprTerm ts
+        Forall {} -> throwError $ LambdaNotArrow (toSyntax' ty) pprTerm ts
     LamTy n e0 -> case ty of
         Forall m s0 -> withRigid $ do
             let e1 = unChk' $ bimap (first (fmap (fmap Right))) comm $ fromScopeH e0
@@ -295,6 +310,60 @@ synCheck ts term ty = case term of
                 , Forall m $ toScopeH $ fmap uncomm s4
                 )
         _ -> throwError $ PolyNotForall (toSyntax' ty) pprTerm ts
+
+    MkTuple xs -> case ty of
+        Mono (T ab) -> do
+            xsty' <- for xs $ \x -> do
+                a <- UVar <$> freeVar
+                (x', _) <- synCheck ts' x (Mono (T a))
+                return (x', a)
+            let xs' = map fst xsty'
+                ab' = map snd xsty'
+            ty' <- unify ab (UTerm (TupleF ab'))
+            pure (MkTuple xs', Mono (T ty'))
+
+        Mono (Tuple xst) | length xs == length xst -> do
+            xsty' <- for (zip xs xst) $ \(x, xt) -> do
+                (x', xt') <- synCheck ts' x (Mono xt)
+                case xt' of
+                    Mono xt'' -> return (x', xt'')
+                    Forall {} -> throwError $ SomeErr "poly in mktuple"
+
+            let xs' = map fst xsty'
+                ab' = map snd xsty'
+            pure (MkTuple xs' , Mono (Tuple ab'))
+
+        Mono _    -> throwError $ PairNotProd (toSyntax' ty) pprTerm ts
+        Forall {} -> throwError $ PairNotProd (toSyntax' ty) pprTerm ts
+
+    Split x (Irr xs) b -> do
+        (x', xt) <- synInfer ts' x
+        case xt of
+            Mono (T var) -> do
+                ab <- for xs $ \_ -> UVar <$> freeVar
+                _ <- unify var (UTerm (TupleF (V.toList ab)))
+
+                let -- inst :: Either (NSym n) (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either (NSym n) a)
+                    inst (Left n@(NSym y _)) = V (Mono $ T $ ab V.! y , Left n)
+                    inst (Right (ty', xx))   = V (ty', Right xx)
+                let bb = instantiateHEither inst b
+                (bb', tt') <- synCheck ts' bb ty
+                pure (Split x' (Irr xs) $ abstractHEither id bb', tt')
+
+            Mono (Tuple xst) -> case equalLength xst xs of
+                Nothing -> throwError $ SomeErr "tuple dimensions don't match (synth)"
+                Just ab -> do
+                    let -- inst :: Either (NSym n) (Poly (U b v), a) -> Inf (U b v) (Poly (U b v), Either (NSym n) a)
+                        inst (Left n@(NSym y _)) = V (Mono $ ab V.! y , Left n)
+                        inst (Right (ty', xx))   = V (ty', Right xx)
+
+                    let bb = instantiateHEither inst b
+                    (bb', tt') <- synCheck ts' bb ty
+                    pure (Split x' (Irr xs) $ abstractHEither id bb', tt')
+
+            Mono _    -> throwError $ NotATuple (toSyntax' ty) pprTerm ts'
+            Forall {} -> throwError $ NotATuple (toSyntax' ty) pprTerm ts'
+
   where
     pprTerm = toSyntax' $ uncurry (\t x -> sthe (toSyntax t) (toSyntax x)) <$> term
     ts'     = pprTerm : ts

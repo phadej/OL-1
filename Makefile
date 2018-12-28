@@ -12,6 +12,9 @@ fixtures-accept :
 ghcid-OL-I :
 	ghcid -c 'cabal new-repl OL-I'
 
+ghcid-OL-I-syntax :
+	ghcid -c 'cabal new-repl OL-I-syntax'
+
 doctest :
 	doctest \
 		-XDataKinds \

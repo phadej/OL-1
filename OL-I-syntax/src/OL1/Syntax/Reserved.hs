@@ -6,12 +6,18 @@ data Reserved
     = RThe    -- ^ @the@
     | RFnType -- ^ @fn-type@
     | RFn     -- ^ @fn@
+
+    | RTuple  -- ^ @tuple@
+    | RSplit  -- ^ @split@
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 reservedToString :: Reserved -> String
 reservedToString RThe    = "the"
 reservedToString RFn     = "fn"
 reservedToString RFnType = "->"
+
+reservedToString RTuple = "tuple"
+reservedToString RSplit = "split"
 
 instance QC.Arbitrary Reserved where
     arbitrary = QC.arbitraryBoundedEnum
