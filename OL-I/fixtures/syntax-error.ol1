@@ -1,0 +1,1 @@
+(split p ((the x A)) x)
