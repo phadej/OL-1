@@ -7,8 +7,7 @@ import Control.Applicative (Alternative (..))
 import Control.Lens        ((^.))
 import Control.Monad       (MonadPlus (..))
 import Data.Bifunctor      (first)
-import Data.String         (fromString)
-import Text.Trifecta       (Fixit (..), Spanned (..), render, Span, span)
+import Text.Trifecta       (Spanned (..), render, Span, span)
 
 import OL1.Syntax.Internal
 import OL1.Syntax.Sym
@@ -18,14 +17,14 @@ import OL1.Syntax.Type
 -- Types
 -------------------------------------------------------------------------------
 
-newtype Parser a = Parser { runParser :: Either (Either Fixit String) a }
+newtype Parser a = Parser { runParser :: Either (Maybe Span, String) a }
   deriving newtype (Functor, Applicative, Monad)
 
 failure :: String -> Parser a
-failure = Parser . Left . Right
+failure err = Parser (Left (Nothing, err))
 
 failFixit :: Span -> String -> Parser a
-failFixit sp repl = Parser . Left . Left $ Fixit sp (fromString repl)
+failFixit sp err = Parser (Left (Just sp, err))
 
 instance Alternative Parser where
     empty = failure "empty"
@@ -59,6 +58,9 @@ instance f ~ Spanned => FromSyntax (Syntax f) where
 
 eitherFromSyntax :: (FromSyntax a, FromSyntax b) => Spanned SyntaxS -> Either String (Either a b)
 eitherFromSyntax s
-    = first (either (prettyShow . render) id)
+    = first renderErr
     $ runParser
     $ Left <$> fromSyntax s <|> Right <$> fromSyntax s
+  where
+    renderErr (Nothing, err) = err
+    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (render sp)
