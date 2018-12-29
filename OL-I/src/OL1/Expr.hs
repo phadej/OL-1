@@ -12,17 +12,13 @@ import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Coerce          (coerce)
 import Data.Foldable        (foldrM)
-import Data.Functor.Classes (Eq1 (..), eq1)
 import Data.Kind            (Type)
-import Data.Maybe           (fromMaybe)
 import Data.String          (IsString (..))
-import Data.Type.Equality
 import Data.Vec.Lazy        (Vec (..), reifyList, universe, (!))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Vec.Lazy   as V
 
-import OL1.Internal
 import OL1.Syntax
 import OL1.Type
 
@@ -163,44 +159,6 @@ instance Bitraversable Chk where
         <*> pure xs
         <*> bitraverseScopeH f f g b
     bitraverse f g (MkTuple xs)  = MkTuple <$> traverse (bitraverse f g) xs
-
--------------------------------------------------------------------------------
--- Eq
--------------------------------------------------------------------------------
-
-instance Eq b => Eq1 (Inf b) where
-    liftEq eq = go where
-        go (V a)       (V a')        = eq a a'
-        go (App f x)   (App f' x')   = go f f' && liftEq eq x x'
-        go (AppTy x t) (AppTy x' t') = go x x' && t == t'
-        go (Ann e t)   (Ann e' t')   = liftEq eq e e' && t == t'
-
-        go V     {} _ = False
-        go App   {} _ = False
-        go AppTy {} _ = False
-        go Ann   {} _ = False
-
-instance (Eq b) => Eq1 (Chk b) where
-    liftEq eq (Inf x)     (Inf y)      = liftEq eq x y
-    liftEq eq (Lam n b)   (Lam n' b') = n == n' && liftEq eq b b'
-    liftEq eq (LamTy n (ScopeH (Chk' b)))
-              (LamTy n' (ScopeH (Chk' b')))  = n == n' &&
-        liftEq eq b b'
-    liftEq eq (MkTuple xs) (MkTuple xs') =
-        liftEq (liftEq eq) xs xs'
-
-    liftEq eq (Split x (Irr xs) b) (Split x' (Irr xs') b') = fromMaybe False $ do
-        Refl <- equalLength' xs xs'
-        return $ liftEq eq x x' && liftEq eq b b'
-
-    liftEq _ Inf     {} _ = False
-    liftEq _ Lam     {} _ = False
-    liftEq _ LamTy   {} _ = False
-    liftEq _ Split    {} _ = False
-    liftEq _ MkTuple {} _ = False
-
-instance (Eq b, Eq a) => Eq (Inf b a) where (==) = eq1
-instance (Eq b, Eq a) => Eq (Chk b a) where (==) = eq1
 
 -------------------------------------------------------------------------------
 -- FromSyntax
