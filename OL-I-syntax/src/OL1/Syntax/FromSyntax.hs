@@ -1,11 +1,16 @@
 module OL1.Syntax.FromSyntax where
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding (span)
 
 import Control.Applicative (Alternative (..))
+import Control.Lens        ((^.))
 import Control.Monad       (MonadPlus (..))
+import Data.Bifunctor      (first)
+import Data.String         (fromString)
+import Text.Trifecta       (Fixit (..), Spanned (..), render, Span, span)
 
+import OL1.Syntax.Internal
 import OL1.Syntax.Sym
 import OL1.Syntax.Type
 
@@ -13,11 +18,14 @@ import OL1.Syntax.Type
 -- Types
 -------------------------------------------------------------------------------
 
-newtype Parser a = Parser { runParser :: Either String a }
+newtype Parser a = Parser { runParser :: Either (Either Fixit String) a }
   deriving newtype (Functor, Applicative, Monad)
 
 failure :: String -> Parser a
-failure = Parser . Left
+failure = Parser . Left . Right
+
+failFixit :: Span -> String -> Parser a
+failFixit sp repl = Parser . Left . Left $ Fixit sp (fromString repl)
 
 instance Alternative Parser where
     empty = failure "empty"
@@ -36,19 +44,21 @@ instance MonadPlus Parser where
 --
 -- TODO: structured errors
 class FromSyntax a where
-    fromSyntax :: Syntax -> Parser a
+    fromSyntax :: Spanned SyntaxS -> Parser a
 
 instance FromSyntax Sym where
-    fromSyntax (SSym s) = return s
-    fromSyntax _        = failure "not sym"
+    fromSyntax (SSym s :~ _) = return s
+    fromSyntax s             = failFixit (s ^. span) "Expecting symbol"
 
-instance FromSyntax Syntax where
-    fromSyntax = return
+instance f ~ Spanned => FromSyntax (Syntax f) where
+    fromSyntax (s :~ _) = return s
 
 -------------------------------------------------------------------------------
 -- Combinators
 -------------------------------------------------------------------------------
 
-eitherFromSyntax :: (FromSyntax a, FromSyntax b) => Syntax -> Either String (Either a b)
-eitherFromSyntax s = runParser $
-    Left <$> fromSyntax s <|> Right <$> fromSyntax s
+eitherFromSyntax :: (FromSyntax a, FromSyntax b) => Spanned SyntaxS -> Either String (Either a b)
+eitherFromSyntax s
+    = first (either (prettyShow . render) id)
+    $ runParser
+    $ Left <$> fromSyntax s <|> Right <$> fromSyntax s

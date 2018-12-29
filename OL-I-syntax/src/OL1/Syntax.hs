@@ -6,6 +6,12 @@ module OL1.Syntax (
     Irr (..),
     Reserved (..),
     Syntax (..),
+    hoistSyntax,
+    SyntaxI,
+    SyntaxS,
+    -- * Re-exports
+    Span, Spanned (..), I (..), unI,
+    spannedToI,
     -- * Parsing
     syntaxFromString,
     parseSyntax,
@@ -53,3 +59,8 @@ import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 import OL1.Syntax.ToSyntax
 import OL1.Syntax.Type
+
+import Text.Trifecta (Span, Spanned (..))
+
+spannedToI :: Spanned x -> I x
+spannedToI (x :~ _) = I x

@@ -12,7 +12,7 @@ newtype Sym = Sym ShortText
   deriving (Eq, Ord, Show)
 
 isSymChar :: Char -> Bool
-isSymChar c = isPrint c && c `notElem` "()[]{}@" && not (isSeparator c)
+isSymChar c = isPrint c && c `notElem` "()[]{}@;" && not (isSeparator c)
 
 instance IsString Sym where
     fromString = Sym . fromString

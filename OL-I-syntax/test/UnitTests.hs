@@ -1,8 +1,8 @@
 module Main (main) where
 
-import Test.Tasty        (defaultMain, testGroup)
+import Test.QuickCheck       (Property, counterexample, (===))
+import Test.Tasty            (defaultMain, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
-import Test.QuickCheck (counterexample, (===), Property)
 
 import OL1.Syntax
 
@@ -11,10 +11,10 @@ main = defaultMain $ testGroup "Properties"
     [ testProperty "roundtrip" roundtripProp
     ]
 
-roundtripProp :: Syntax -> Property
+roundtripProp :: Syntax I -> Property
 roundtripProp s = counterexample str $ case syntaxFromString str of
-    Right s' -> counterexample (show s') $ s === s'
-    Left err -> counterexample err False
+    Right (s' :~ _) -> counterexample (show s') $ s === hoistSyntax spannedToI s'
+    Left err        -> counterexample err False
   where
     str = syntaxToString s
 
