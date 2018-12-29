@@ -2,23 +2,21 @@
 module Main (main) where
 
 import Control.Lens
-import Control.Monad.Module ((>>==))
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
-import Control.Monad.Writer (Writer, execWriter, tell)
+import Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import Control.Monad.State.Strict
-import Data.Bifunctor       (first)
-import Data.Foldable        (for_)
-import Data.List            (sort)
-import System.Directory     (listDirectory)
-import System.FilePath      (takeExtension, (-<.>), (</>))
-import Test.Tasty           (TestTree, defaultMain, testGroup)
-import Test.Tasty.Golden    (goldenVsStringDiff)
+import Control.Monad.Writer       (Writer, execWriter, tell)
+import Data.Foldable              (for_)
+import Data.List                  (sort)
+import System.Directory           (listDirectory)
+import System.FilePath            (takeExtension, (-<.>), (</>))
+import Test.Tasty                 (TestTree, defaultMain, testGroup)
+import Test.Tasty.Golden          (goldenVsStringDiff)
 
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
-import qualified Data.Map.Strict as Map
 import qualified Data.ByteString.UTF8       as UTF8
+import qualified Data.Map.Strict            as Map
 
 import OL1
 import OL1.Syntax
@@ -57,26 +55,33 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
                 SList ["define", SSym n, s1] -> do
                     header "DEFINE"
-                    expr <- inference s1
+                    (expr, ty, _val) <- inference s1
 
-                    defined %= ((n, expr) :)
+                    defined %= ((n, expr, ty) :)
 
                 _ -> do
                     header "EVALUATE"
-                    expr2 <- inference s0
+                    (expr, _ty, _val) <- inference s0
+    
+
+                    header "EXPANDED"
 
                     post <- use postulated
                     let ctx :: Sym -> Maybe (Poly Sym)
                         ctx n = post ^? ix n
 
-                    header "CHECKED TYPE"
-                    (val, ty) <- either (throwError . show) pure $ infer
-                        ctx
-                        expr2
-                    tellString $ pretty ty
+                    defs <- use defined
+                    let subst :: (Sym, Inf Sym Sym, Poly Sym) -> Inf Sym Sym -> Inf Sym Sym
+                        subst (n, x, _) t = t >>= \n' -> if n' == n then x else return n'
+                    let expr1 = foldr subst expr defs
+
+                    tellString $ pretty expr1
 
                     header "EVALUATED VALUE"
-                    tellString $ syntaxToString $ runPrinter $ toSyntax val
+                    (val, _ty) <- either (throwError . show) pure $ infer
+                        ctx
+                        expr1
+                    tellString $ pretty val
   where
     input  = "fixtures" </> name -<.> "ol1"
     output = "fixtures" </> name -<.> "out"
@@ -101,37 +106,39 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
     diff ref new = ["diff", "-u", ref, new]
 
-    inference :: Syntax -> M (Inf Sym Sym)
+    inference :: Syntax -> M (Inf Sym Sym, Poly Sym, Intro Sym Sym)
     inference s0 = do
         -- no header
         expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk (Maybe Sym) Sym)
         tellString $ pretty expr0
 
-        defs <- use defined
-        expr1 <- if null defs then return expr0 else do
-            let expr1 = foldr (\(n, e) e' -> e' >>== \n' -> if n == n' then first Just e else return n') expr0 defs
-            header "EXPANDED"
-            tellString $ pretty expr1
-            return expr1
-
         header "INFERRED"
-        let toInf (Inf e) = e
-            toInf e       = Ann e (Mono $ T Nothing)
-
         post <- use postulated
+        defs <- use defined
+        let defs' = Map.union post $ Map.fromList [ (n, t) | (n, _, t) <- defs ]
         let ctx :: Sym -> Maybe (Poly Sym)
-            ctx n = post ^? ix n
+            ctx n = defs' ^? ix n
 
         (expr2, ws) <- either (throwError . show) pure $ synth
             ctx
-            (toInf expr1)
+            (ann_ expr0 $ Mono $ T Nothing)
 
         for_ ws $ \(NotInScope s ty) -> tellString $
             "WARN: " ++ pretty (sthe (toSyntax ty) (toSyntax s))
 
         tellString $ pretty expr2
 
-        return expr2
+        header "CHECKED TYPE"
+        (val, ty) <- either (throwError . show) pure $ infer
+            ctx
+            expr2
+        tellString $ pretty ty
+
+        return (expr2, ty, val)
+
+ann_ :: Chk b a -> Poly b -> Inf b a
+ann_ (Inf a) _ = a
+ann_ a       b = Ann a b
 
 pretty :: ToSyntax a => a -> String
 pretty = syntaxToString . runPrinter . toSyntax
@@ -141,13 +148,13 @@ type M' = ExceptT String (Writer [BS.ByteString])
 
 data S = S
     { _postulated :: Map.Map Sym (Poly Sym)
-    , _defined    :: [(Sym, Inf Sym Sym)] -- ^ reversed order!
+    , _defined    :: [(Sym, Inf Sym Sym, Poly Sym)] -- ^ reversed order!
     }
 
 postulated :: Lens' S (Map.Map Sym (Poly Sym))
 postulated f s = f (_postulated s) <&> \x -> s { _postulated = x }
 
-defined :: Lens' S [(Sym, Inf Sym Sym)]
+defined :: Lens' S [(Sym, Inf Sym Sym, Poly Sym)]
 defined f s = f (_defined s) <&> \x -> s { _defined = x }
 
 emptyS :: S
