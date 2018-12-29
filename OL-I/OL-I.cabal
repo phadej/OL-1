@@ -85,6 +85,7 @@ test-suite fixtures
     , OL-I
     , OL-I-syntax
     , pretty-compact
+    , trifecta
 
   -- test only GHC boot libs
   build-depends:

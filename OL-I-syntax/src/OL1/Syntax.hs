@@ -5,6 +5,7 @@ module OL1.Syntax (
     NSym (..),
     Irr (..),
     Reserved (..),
+    reservedToString,
     Syntax (..),
     hoistSyntax,
     SyntaxI,
@@ -50,6 +51,7 @@ module OL1.Syntax (
     runParser,
     Parser,
     failure,
+    failFixit,
     ) where
 
 import OL1.Syntax.FromSyntax

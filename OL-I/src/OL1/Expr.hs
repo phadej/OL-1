@@ -212,56 +212,71 @@ instance (a ~ Sym, b ~ Maybe Sym) => FromSyntax (Inf b a) where
 instance (a ~ Sym, b ~ Maybe Sym) => FromSyntax (Chk b a) where
     fromSyntax = fromSyntaxChk
 
-fromSyntaxInf :: Syntax -> Parser (Inf (Maybe Sym) Sym)
-fromSyntaxInf (SSym s)           = return (V s)
-fromSyntaxInf (SList (f : xs))   = fromSyntaxInf f >>= \f' -> go f' xs where
+fromSyntaxInf :: Spanned SyntaxS -> Parser (Inf (Maybe Sym) Sym)
+
+-- symbols
+fromSyntaxInf (SSym s :~ _)         = return (V s)
+
+-- lists
+fromSyntaxInf (SList [] :~ _)       = return $ Ann (MkTuple []) (Mono (Tuple []))
+fromSyntaxInf (SList (f : xs) :~ _) = fromSyntaxInf f >>= \f' -> go f' xs where
     go g [] = return g
-    go g (SAt y : ys) = do
-        y' <- fromSyntax y
+    go g (SAt y :~ _ : ys) = do
+        y' <- fromSyntaxMono y
         go (AppTy g (fmap Just y')) ys
     go g (y : ys) = do
         y' <- fromSyntaxChk y
         go (App g y') ys
-fromSyntaxInf (SRList RThe [t, x]) = do
+fromSyntaxInf (SRList (RThe :~ _) [t, x] :~ _) = do
     x' <- fromSyntaxChk x
-    t' <- fromSyntax t -- TODO: fromSyntaxPoly
+    t' <- fromSyntaxPoly t
     return (Ann x' (fmap Just t'))
+fromSyntaxInf (SRList (RThe :~ ann) _ :~ _) = failFixit ann
+    "'the' takes exactly two arguments"
 
-fromSyntaxInf s = failure $ "not inf: " ++ syntaxToString s
+-- at
+fromSyntaxInf (SAt _ :~ ann) = failFixit ann "Unexpected @at"
 
-fromSyntaxInf' :: Syntax -> Parser (Inf (Maybe Sym) Sym)
+-- rest Reserved: fail
+fromSyntaxInf (SRList (r :~ ann) _ :~ _) = failFixit ann $
+    "Unexpected " ++ reservedToString r ++ " in term"
+
+
+fromSyntaxInf' :: Spanned SyntaxS -> Parser (Inf (Maybe Sym) Sym)
 fromSyntaxInf' s = do
     x <- fromSyntaxChk s
     return $ case x of
         Inf x' -> x'
         _      -> Ann x (Mono (T Nothing))
 
-fromSyntaxChk :: Syntax -> Parser (Chk (Maybe Sym) Sym)
+fromSyntaxChk :: Spanned SyntaxS -> Parser (Chk (Maybe Sym) Sym)
 -- fn
-fromSyntaxChk (SRList RFn [SList ss, body]) = do
+fromSyntaxChk (SRList (RFn :~ _) [SList ss :~ _, body] :~ _) = do
     body' <- fromSyntaxChk body
     foldrM lam body' ss
   where
-    lam :: Syntax -> Chk (Maybe Sym) Sym -> Parser (Chk (Maybe Sym) Sym)
-    lam (SSym s)       b = return $ Lam s' (abstractHEither k b) where
+    lam :: Spanned SyntaxS -> Chk (Maybe Sym) Sym -> Parser (Chk (Maybe Sym) Sym)
+    lam (SSym s :~ _)       b = return $ Lam s' (abstractHEither k b) where
         s' = Irr s
         k n | n == s    = Left s'
             | otherwise = Right n
 
-    lam (SAt (SSym s)) b = return $ LamTy s' (abstractHEither k (Chk' b)) where
+    lam (SAt (SSym s :~ _) :~ _) b = return $ LamTy s' (abstractHEither k (Chk' b)) where
         s' = Irr s
         k n | n == Just s = Left s'
             | otherwise   = Right n
 
-    lam s              _ = failure $ "Invalid fn arg" ++ show s -- TODO prety
+    lam (_ :~ ann)         _ = failFixit ann
+        "fn arguments should be symbols or @symbols"
 
-fromSyntaxChk (SRList RFn xs) =
-    failure $ "invalid fn args: " ++ show xs
+fromSyntaxChk (SRList (RFn :~ ann) _ :~ _) = failFixit ann
+    "Invalid fn arguments"
 
 -- Tuples
-fromSyntaxChk (SRList RTuple xs) = MkTuple <$> traverse fromSyntaxChk xs
+fromSyntaxChk (SRList (RTuple :~ _) xs :~ _) = MkTuple <$> traverse fromSyntaxChk xs
 
-fromSyntaxChk (SRList RSplit [x, SList xs, body]) | Just xs' <- traverse isSSym xs = do
+fromSyntaxChk (SRList (RSplit :~ _) [x, SList xs :~ _, body] :~ _) = do
+    xs' <- traverse fromSyntaxSym xs
     x' <- fromSyntaxInf' x
     body' <- fromSyntaxChk body
 
@@ -272,12 +287,13 @@ fromSyntaxChk (SRList RSplit [x, SList xs, body]) | Just xs' <- traverse isSSym 
                 Nothing -> Right n
         in Split x' (Irr xs'') $ abstractHEither k body'
   where
-    isSSym :: Syntax -> Maybe Sym
-    isSSym (SSym s) = Just s
-    isSSym _        = Nothing
+    fromSyntaxSym :: Spanned SyntaxS -> Parser Sym
+    fromSyntaxSym (SSym s :~ _)   = return s
+    fromSyntaxSym (_      :~ ann) = failFixit ann
+        "split variables should be symbols"
 
-fromSyntaxChk (SRList RSplit xs)  =
-    failure $ "invalid case args: " ++ show xs
+fromSyntaxChk (SRList (RSplit :~ ann) _ :~ _)  =
+    failFixit ann "Invalid split arguments"
 
 -- Inf
 fromSyntaxChk s = Inf <$> fromSyntaxInf s
@@ -292,13 +308,13 @@ instance (ToSyntax a, ToSyntax b) => ToSyntax (Inf a b) where
 instance (ToSyntax a, ToSyntax b) => ToSyntax (Chk a b) where
     toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxChk
 
-toSyntaxInf :: Inf Syntax Syntax -> Printer Syntax
+toSyntaxInf :: Inf SyntaxI SyntaxI -> Printer SyntaxI
 toSyntaxInf (V x)             = return x
 toSyntaxInf (App f x)         = sapp (toSyntaxInf f) (toSyntaxChk x)
 toSyntaxInf (AppTy x t)       = sappTy (toSyntaxInf x) (toSyntaxMono t)
 toSyntaxInf (Ann x t)         = sthe (toSyntaxPoly t) (toSyntaxChk x)
 
-toSyntaxChk :: Chk Syntax Syntax -> Printer Syntax
+toSyntaxChk :: Chk SyntaxI SyntaxI -> Printer SyntaxI
 toSyntaxChk (Inf a) = toSyntaxInf a
 toSyntaxChk (Lam (Irr n) b) = freshen n $ \s -> sfn
     (toSyntax s)

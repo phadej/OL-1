@@ -37,7 +37,7 @@ check = rcheck []
 
 rinfer
     :: (Eq b, ToSyntax a, ToSyntax b)
-    => [Syntax]
+    => [SyntaxI]
     -> (a -> Maybe (Poly b))
     -> Inf b a
     -> Either Err (Intro b a, Poly b)
@@ -65,7 +65,7 @@ rinfer ts ctx term = case term of
 
 rcheck
     :: (Eq b, ToSyntax a, ToSyntax b)
-    => [Syntax] -- ^ terms we walked through, for error reporting
+    => [SyntaxI] -- ^ terms we walked through, for error reporting
     -> (a -> Maybe (Poly b))
     -> Chk b a
     -> Poly b

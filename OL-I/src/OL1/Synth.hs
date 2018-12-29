@@ -91,7 +91,7 @@ synth ctx
 -- Warning
 -------------------------------------------------------------------------------
 
-data Warning a = NotInScope a Syntax
+data Warning a = NotInScope a SyntaxI
 
 -- instance Pretty a => Pretty (Warning a) where
 --    toSyntax' (NotInScope a d) = sexpr (pprText "not-in-scope") [toSyntax' a, d]
@@ -106,7 +106,7 @@ flattenMono (UTerm (TF x))     = T (Right x)
 flattenMono (UTerm (a :=> b))  = flattenMono a :-> flattenMono b
 flattenMono (UTerm (TupleF x)) = Tuple (map flattenMono x)
 
-flattenMonoDoc :: ToSyntax b => U b v -> Mono (Either v Syntax)
+flattenMonoDoc :: ToSyntax b => U b v -> Mono (Either v SyntaxI)
 flattenMonoDoc = fmap (fmap toSyntax') . flattenMono
 
 flattenPoly :: Poly (U b v) -> Poly (Either v b)
@@ -171,7 +171,7 @@ wrap = Mono . T
 
 synInfer
     :: (RigidVariable ISym v, Eq b, ToSyntax a, ToSyntax b, ToSyntax v)
-    => [Syntax]
+    => [SyntaxI]
     -> Inf (U b v) (Poly (U b v), a)  -- ^ terms with meta leaves
     -> Unify' b v (Inf (U b v) a, Poly (U b v))
 synInfer ts term = case term of
@@ -196,7 +196,7 @@ synInfer ts term = case term of
 
 sysInferApp
     :: (Eq b, RigidVariable ISym v, ToSyntax a, ToSyntax b, ToSyntax v)
-    => [Syntax]
+    => [SyntaxI]
     -> Inf (U b v) a
     -> Poly (U b v)
     -> Chk (U b v) (Poly (U b v ), a)
@@ -268,7 +268,7 @@ unifyPoly u a@Mono {} b@Forall {} = throwError $ TypeMismatch
 
 synCheck
     :: forall a b v. (Eq b, RigidVariable ISym v, ToSyntax a, ToSyntax b, ToSyntax v)
-    => [Syntax]
+    => [SyntaxI]
     -> Chk (U b v) (Poly (U b v), a)
     -> Poly (U b v)
     -> Unify' b v (Chk (U b v) a, Poly (U b v))
