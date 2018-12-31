@@ -2,6 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OL1.Synth where
 
+import Prelude ()
+import Prelude.Compat
+
 import Bound.ScopeH
 import Bound.Var                 (Var (..))
 import Control.Monad.Error.Class (MonadError (..))
