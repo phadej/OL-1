@@ -1,17 +1,16 @@
-cabal-version:      2.2
-name:               OL-I-syntax
-version:            1
-synopsis:           Oleg's Language I: Pretty class
-category:           Language
+cabal-version: 2.2
+name:          OL-I-syntax
+version:       1
+synopsis:      Oleg's Language I: Pretty class
+category:      Language
 description:
   Predicative System-F based language.
   Uses LISP-y syntax.
 
-author:             Oleg Grenrus <oleg.grenrus@iki.fi>
-maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
-license:            GPL-2.0-or-later
-extra-source-files: golden/*.txt
-tested-with:        ghc ==8.2.2 || ==8.4.4 || ==8.6.3
+author:        Oleg Grenrus <oleg.grenrus@iki.fi>
+maintainer:    Oleg Grenrus <oleg.grenrus@iki.fi>
+license:       GPL-2.0-or-later
+tested-with:   ghc ==8.2.2 || ==8.4.4 || ==8.6.3
 
 source-repository head
   type:     git

@@ -10,8 +10,10 @@ description:
 author:             Oleg Grenrus <oleg.grenrus@iki.fi>
 maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
 license:            GPL-2.0-or-later
-extra-source-files: golden/*.txt
 tested-with:        ghc ==8.2.2 || ==8.4.4 || ==8.6.3
+extra-source-files:
+  fixtures/*.ol1
+  fixtures/*.out
 
 source-repository head
   type:     git
