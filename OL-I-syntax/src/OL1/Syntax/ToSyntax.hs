@@ -6,7 +6,6 @@ import Control.Applicative        (liftA2)
 import Control.Monad.State.Strict (State, evalState, get, put)
 import Control.Unification.Rigid  (MetaVar (..), UTerm (..))
 import Data.Char                  (isDigit)
-import Data.Functor.Identity      (Identity (..))
 import Data.String                (IsString (..))
 import Data.Text.Short            (ShortText)
 import Data.Traversable           (for)
@@ -23,7 +22,7 @@ import OL1.Syntax.Type
 -- Types
 -------------------------------------------------------------------------------
 
-type SyntaxM = Printer Syntax
+type SyntaxM = Printer SyntaxI
 
 -- | State of pretty-printer's "used" symbols
 type S = Set.Set U
@@ -39,10 +38,10 @@ runPrinter (Printer m) = evalState m Set.empty
 -------------------------------------------------------------------------------
 
 class ToSyntax a where
-    toSyntax :: a -> SyntaxM
+    toSyntax :: a -> Printer SyntaxI
 
 class ToSyntax1 f where
-    liftToSyntax :: (a -> SyntaxM) -> f a -> SyntaxM
+    liftToSyntax :: (a -> Printer SyntaxI) -> f a -> Printer SyntaxI
 
 instance ToSyntax Sym where
     toSyntax = return . SSym
@@ -53,19 +52,19 @@ instance ToSyntax (NSym n) where
 instance ToSyntax a => ToSyntax (Irr a) where
     toSyntax (Irr a) = toSyntax a
 
-instance ToSyntax Syntax where
+instance f ~ I => ToSyntax (Syntax f) where
     toSyntax = return
 
 instance ToSyntax a => ToSyntax (Printer a) where
     toSyntax = (>>= toSyntax)
 
-toSyntax' :: ToSyntax a => a -> Syntax
+toSyntax' :: ToSyntax a => a -> SyntaxI
 toSyntax' = runPrinter . toSyntax
 
-toSyntax1' :: (ToSyntax1 f, ToSyntax a) => f a -> Syntax
+toSyntax1' :: (ToSyntax1 f, ToSyntax a) => f a -> SyntaxI
 toSyntax1' = runPrinter . toSyntax1
 
-toSyntax1 :: (ToSyntax1 f, ToSyntax a) => f a -> SyntaxM
+toSyntax1 :: (ToSyntax1 f, ToSyntax a) => f a -> Printer SyntaxI
 toSyntax1 = liftToSyntax toSyntax
 
 -------------------------------------------------------------------------------
@@ -74,7 +73,7 @@ toSyntax1 = liftToSyntax toSyntax
 
 -- | Make fresh symbol variant.
 freshen :: Sym -> (Sym -> Printer a) -> Printer a
-freshen s f = freshenMany (Identity s) (f . runIdentity)
+freshen s f = freshenMany (I s) (f . unI)
 
 freshenMany :: Traversable t => t Sym -> (t Sym -> Printer a) -> Printer a
 freshenMany ss f = Printer $ do
@@ -97,16 +96,25 @@ freshenI (Irr s) = freshen s
 -------------------------------------------------------------------------------
 
 sat :: SyntaxM -> SyntaxM
-sat = fmap SAt
+sat = fmap sat'
+
+sat' :: SyntaxI -> SyntaxI
+sat' = SAt . I
 
 ssym :: Sym -> SyntaxM
 ssym = return . SSym
 
 slist ::[SyntaxM] -> SyntaxM
-slist = fmap SList . sequenceA
+slist = fmap slist' . sequenceA
+
+slist' :: [SyntaxI] -> SyntaxI
+slist' = SList . map I
 
 srlist :: Reserved -> [SyntaxM] -> SyntaxM
-srlist r = fmap (SRList r) . sequenceA
+srlist r = fmap (srlist' r) . sequenceA
+
+srlist' :: Reserved -> [SyntaxI] -> SyntaxI
+srlist' r = SRList (I r) . map I
 
 -------------------------------------------------------------------------------
 -- Higher order
@@ -114,44 +122,43 @@ srlist r = fmap (SRList r) . sequenceA
 
 sthe :: SyntaxM -> SyntaxM -> SyntaxM
 sthe = liftA2 impl where
-    impl t x = SRList RThe [t, x]
+    impl t x = srlist' RThe [t, x]
 
 sarrow :: SyntaxM -> SyntaxM -> SyntaxM
 sarrow = liftA2 arrow where
-    arrow a (SRList RFnType b) = SRList RFnType (a : b)
-    arrow a b                  = SRList RFnType [a, b]
+    arrow a (SRList (I RFnType) b) = srlist' RFnType (a : map unI b)
+    arrow a b                      = srlist' RFnType [a, b]
 
 sforall :: SyntaxM -> SyntaxM -> SyntaxM
 sforall = liftA2 forall where
-    forall a (SRList RFnType b) = SRList RFnType (SAt a : b)
-    forall a b                  = SRList RFnType [SAt a, b]
+    forall a (SRList (I RFnType) b) = srlist' RFnType (sat' a : map unI b)
+    forall a b                      = srlist' RFnType [sat' a, b]
 
 sapp :: SyntaxM -> SyntaxM -> SyntaxM
 sapp = liftA2 apply where
-    apply (SList f) x = SList (snoc f x)
-    apply f x         = SList [f, x]
+    apply (SList f) x = slist' (snoc (map unI f) x)
+    apply f x         = slist' [f, x]
 
 sappTy :: SyntaxM -> SyntaxM -> SyntaxM
 sappTy = liftA2 apply where
-    apply (SList f) x = SList (snoc f (SAt x))
-    apply f x         = SList [f, SAt x]
+    apply (SList f) x = slist' (snoc (map unI f) (sat' x))
+    apply f x        = slist' [f, sat' x]
 
 sfn :: SyntaxM -> SyntaxM -> SyntaxM
 sfn = liftA2 impl where
-    impl x (SRList RFn [SList xs, b]) = SRList RFn [SList (x:xs), b]
-    impl x b                          = SRList RFn [SList [x], b]
+    impl x (SRList (I RFn) [I (SList xs), I b]) = srlist' RFn [slist' (x : map unI xs), b]
+    impl x b                                    = srlist' RFn [slist' [x], b]
 
 spoly :: SyntaxM -> SyntaxM -> SyntaxM
 spoly = liftA2 impl where
-    impl x (SRList RFn [SList xs, b]) = SRList RFn [SList (SAt x:xs), b]
-    impl x b                          = SRList RFn [SList [SAt x], b]
+    impl x (SRList (I RFn) [I (SList xs) , I b]) = srlist' RFn [slist' (sat' x : map unI xs), b]
+    impl x b                                     = srlist' RFn [slist' [sat' x], b]
 
 stuple :: [SyntaxM] -> SyntaxM
-stuple = fmap (SRList RTuple) . sequenceA
+stuple = srlist RTuple
 
 scase :: SyntaxM -> [SyntaxM] -> SyntaxM -> SyntaxM
-scase x xs y = impl <$> x <*> sequenceA xs <*> y where
-    impl a b c = SRList RSplit [a, SList b, c]
+scase x xs y = srlist RSplit [x, slist xs, y]
 
 snoc :: [a] -> a -> [a]
 snoc xs x = xs ++ [x]

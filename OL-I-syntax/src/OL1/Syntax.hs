@@ -5,7 +5,14 @@ module OL1.Syntax (
     NSym (..),
     Irr (..),
     Reserved (..),
+    reservedToString,
     Syntax (..),
+    hoistSyntax,
+    SyntaxI,
+    SyntaxS,
+    -- * Re-exports
+    Span, Spanned (..), I (..), unI,
+    spannedToI,
     -- * Parsing
     syntaxFromString,
     parseSyntax,
@@ -44,6 +51,7 @@ module OL1.Syntax (
     runParser,
     Parser,
     failure,
+    failFixit,
     ) where
 
 import OL1.Syntax.FromSyntax
@@ -53,3 +61,8 @@ import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 import OL1.Syntax.ToSyntax
 import OL1.Syntax.Type
+
+import Text.Trifecta (Span, Spanned (..))
+
+spannedToI :: Spanned x -> I x
+spannedToI (x :~ _) = I x

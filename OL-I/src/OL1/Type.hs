@@ -151,15 +151,15 @@ instance ToSyntax a => ToSyntax1 (MonoF a) where
 instance ToSyntax a => ToSyntax (Poly a) where
     toSyntax a = traverse toSyntax a >>= toSyntaxPoly
 
-toSyntaxMono :: Mono Syntax -> Printer Syntax
+toSyntaxMono :: Mono SyntaxI -> SyntaxM
 toSyntaxMono = cata toSyntaxMonoF
 
-toSyntaxMonoF :: MonoF Syntax (Printer Syntax) -> Printer Syntax
+toSyntaxMonoF :: MonoF SyntaxI SyntaxM -> SyntaxM
 toSyntaxMonoF (TF a)     = return a
 toSyntaxMonoF (a :=> b)  = sarrow a b
 toSyntaxMonoF (TupleF b) = stuple b
 
-toSyntaxPoly :: Poly Syntax -> Printer Syntax
+toSyntaxPoly :: Poly SyntaxI -> SyntaxM
 toSyntaxPoly (Mono a)     = toSyntaxMono a
 toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
     let s'' = SSym s'
@@ -170,25 +170,39 @@ toSyntaxPoly (Forall s a) = freshenI s $ \s' ->
 -------------------------------------------------------------------------------
 
 instance a ~ Sym => FromSyntax (Mono a) where
-    fromSyntax (SRList RFnType [])     = return (Tuple [])
-    fromSyntax (SRList RFnType [a])    = fromSyntax a
-    fromSyntax (SRList RFnType (a:bs)) = do
-        bs' <- fromSyntax (SRList RFnType bs)
-        (:->) <$> fromSyntax a <*> pure bs'
-    fromSyntax (SRList RTuple xs)     = Tuple <$> traverse fromSyntax xs
-
-    fromSyntax s = T <$> fromSyntax s
+    fromSyntax = fromSyntaxMono
 
 instance a ~ Sym => FromSyntax (Poly a) where
-    fromSyntax (SRList RFnType (SAt (SSym x) : xs)) = fromSyntaxPoly x xs
-    fromSyntax s                                    = Mono <$> fromSyntax s
+    fromSyntax = fromSyntaxPoly
 
-fromSyntaxPoly :: Sym -> [Syntax] -> Parser (Poly Sym)
-fromSyntaxPoly s xs = do
-    ys <- fromSyntax (SRList RFnType xs)
-    return $ Forall s' $ abstractHEither k ys
-  where
-    s' = Irr s
+fromSyntaxMono :: Spanned SyntaxS -> Parser (Mono Sym)
+-- function types
+fromSyntaxMono (SRList   (RFnType :~ _) []     :~ _)   = return (Tuple [])
+fromSyntaxMono (SRList   (RFnType :~ _) [a]    :~ _)   = fromSyntaxMono a
+fromSyntaxMono (SRList r@(RFnType :~ _) (a:bs) :~ ann) = do
+    a'  <- fromSyntaxMono a
+    bs' <- fromSyntaxMono $ SRList r bs :~ ann
+    return $ a' :-> bs'
 
-    k n | n == s    = Left s'
-        | otherwise = Right n
+-- tuple types
+fromSyntaxMono (SRList (RTuple :~ _) xs :~ _) = Tuple <$> traverse fromSyntaxMono xs
+
+fromSyntaxMono (SList _ :~ ann)           = failFixit ann "Unexpected type application"
+fromSyntaxMono (SAt _ :~ ann)             = failFixit ann "Types cannot contain @at"
+fromSyntaxMono (SRList (r :~ ann) _ :~ _) = failFixit ann $ "Types cannot contain " ++ reservedToString r
+
+-- symbols
+fromSyntaxMono (SSym s :~ _) = return (T s)
+
+fromSyntaxPoly :: Spanned SyntaxS -> Parser (Poly Sym)
+fromSyntaxPoly (SRList r@(RFnType :~_) ((SAt sym :~ _) : xs) :~ ann) = do
+    sym' <- fromSyntax sym
+    xs'  <- fromSyntaxPoly (SRList r xs :~ ann)
+
+    let isym = Irr sym'
+    let k :: Sym -> Either ISym Sym
+        k n | n == sym' = Left isym
+            | otherwise = Right n
+
+    return $ Forall isym $ abstractHEither k xs'
+fromSyntaxPoly s = Mono <$> fromSyntax s

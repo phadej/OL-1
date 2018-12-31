@@ -11,6 +11,7 @@ import System.Directory           (listDirectory)
 import System.FilePath            (takeExtension, (-<.>), (</>))
 import Test.Tasty                 (TestTree, defaultMain, testGroup)
 import Test.Tasty.Golden          (goldenVsStringDiff)
+import Text.Trifecta              (render)
 
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as LBS
@@ -20,6 +21,7 @@ import qualified Data.Map.Strict            as Map
 
 import OL1
 import OL1.Syntax
+import OL1.Syntax.Internal
 
 main :: IO ()
 main = do
@@ -39,21 +41,23 @@ mkCase name = goldenVsStringDiff name diff output $ do
         header "INPUT"
         tell [ contents ]
 
-        ss <- either throwError pure $ parseSyntaxes input contents
+        ss <- either (throwError) pure $ parseSyntaxes input contents
 
         ifor_ ss $ \i s0 -> do
             header $ "PARSED " ++ show (i + 1)
-            tellString $ syntaxToString s0
+            let s0' :~ _ = s0
+            tellString $ syntaxToString (hoistSyntax spannedToI s0')
 
             case s0 of
-                SList ["postulate", SSym n, s1] -> do
+                SList ["postulate" :~ _, SSym n :~ _, s1] :~ _ -> do
                     header "POSTULATE"
-                    ty <- either throwError pure $ runParser (fromSyntax s1) :: M (Poly Sym)
+                    ty <- either (throwError . renderErr) pure $
+                        runParser (fromSyntax s1) :: M (Poly Sym)
                     tellString $ pretty n ++ " := " ++ pretty ty
 
                     postulated . at n ?= ty
 
-                SList ["define", SSym n, s1] -> do
+                SList ["define" :~ _, SSym n :~ _, s1] :~ _ -> do
                     header "DEFINE"
                     (expr, ty, _val) <- inference s1
 
@@ -62,7 +66,7 @@ mkCase name = goldenVsStringDiff name diff output $ do
                 _ -> do
                     header "EVALUATE"
                     (expr, _ty, _val) <- inference s0
-    
+
 
                     header "EXPANDED"
 
@@ -99,6 +103,9 @@ mkCase name = goldenVsStringDiff name diff output $ do
                 , UTF8.fromString err
                 ]
 
+    renderErr (Nothing, err) = err
+    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (render sp)
+
     header :: String -> M ()
     header n = tell
         [ UTF8.fromString $ "=== " ++ n ++ " " ++ replicate (72 - length n) '='
@@ -106,10 +113,11 @@ mkCase name = goldenVsStringDiff name diff output $ do
 
     diff ref new = ["diff", "-u", ref, new]
 
-    inference :: Syntax -> M (Inf Sym Sym, Poly Sym, Intro Sym Sym)
+    inference :: Spanned SyntaxS -> M (Inf Sym Sym, Poly Sym, Intro Sym Sym)
     inference s0 = do
         -- no header
-        expr0 <- either throwError pure $ runParser (fromSyntax s0) :: M (Chk (Maybe Sym) Sym)
+        expr0 <- either (throwError . renderErr) pure $
+            runParser (fromSyntax s0) :: M (Chk (Maybe Sym) Sym)
         tellString $ pretty expr0
 
         header "INFERRED"

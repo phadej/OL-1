@@ -5,58 +5,53 @@ module OL1.Syntax.Parser (
     ) where
 
 import Control.Applicative (Alternative (..))
+import Control.Monad       (MonadPlus)
+import Data.Char           (isSpace)
 import Data.String         (fromString)
-import Data.Char (isSpace)
 import Text.Trifecta
-       (CharParsing, skipSome, manyTill, Parser, Parsing, Result (..), TokenParsing (..), char,
-       choice, eof, highlight, parens, parseByteString, satisfy, string, token,
-       whiteSpace, _errDoc)
+       (CharParsing, DeltaParsing, Parser, Parsing, Result (..), Spanned (..),
+       TokenParsing (..), char, choice, eof, highlight, manyTill, parens,
+       parseByteString, satisfy, skipSome, spanned, string, token, whiteSpace,
+       _errDoc)
 import Text.Trifecta.Delta (Delta (Directed))
 
-import qualified Data.ByteString              as BS
-import qualified Data.ByteString.UTF8         as UTF8
-import qualified Text.Parser.Token.Highlight  as H
-import qualified Text.PrettyPrint.ANSI.Leijen as A
+import qualified Data.ByteString             as BS
+import qualified Data.ByteString.UTF8        as UTF8
+import qualified Text.Parser.Token.Highlight as H
 
+import OL1.Syntax.Internal
 import OL1.Syntax.Reserved
 import OL1.Syntax.Sym
 import OL1.Syntax.Type
 
-syntaxFromString :: String -> Either String Syntax
+syntaxFromString :: String -> Either String (Spanned SyntaxS)
 syntaxFromString = parseSyntax "<input>" . UTF8.fromString
 
-parseSyntax :: FilePath -> BS.ByteString -> Either String Syntax
+parseSyntax :: FilePath -> BS.ByteString -> Either String (Spanned SyntaxS)
 parseSyntax fp bs =
-    case parseByteString (runP $ whiteSpace *> syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
+    case parseByteString (runP $ whiteSpace *> spanned syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
         Success sy  -> Right sy
-        Failure err -> Left $ show' $ _errDoc err
+        Failure err -> Left $ prettyShow $ _errDoc err
 
-show' :: A.Doc -> String
-show' doc = A.displayS (stripSGR $ A.renderPretty 0.4 80 doc) ""
-
-stripSGR :: A.SimpleDoc -> A.SimpleDoc
-stripSGR A.SFail         = A.SFail
-stripSGR A.SEmpty        = A.SEmpty
-stripSGR (A.SChar x d)   = A.SChar x (stripSGR d)
-stripSGR (A.SText i x d) = A.SText i x (stripSGR d)
-stripSGR (A.SLine i d)   = A.SLine i (stripSGR d)
-stripSGR (A.SSGR _ d)    = stripSGR d
-
-parseSyntaxes :: FilePath -> BS.ByteString -> Either String [Syntax]
+parseSyntaxes :: FilePath -> BS.ByteString -> Either String [Spanned SyntaxS]
 parseSyntaxes fp bs =
-    case parseByteString (runP $ whiteSpace *> many syntaxP <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
+    case parseByteString (runP $ whiteSpace *> many (spanned syntaxP) <* eof) (Directed (UTF8.fromString fp) 0 0 0 0) bs of
         Success sy  -> Right sy
-        Failure err -> Left $ show' $ _errDoc err
+        Failure err -> Left $ prettyShow $ _errDoc err
 
-syntaxP :: P Syntax
+-------------------------------------------------------------------------------
+-- Parsers
+-------------------------------------------------------------------------------
+
+syntaxP :: P SyntaxS
 syntaxP = choice
     [ SSym <$> symP
-    , char '@' *> (SAt <$> syntaxP)
-    , parens (listP <|> pure (SList []))
+    , char '@' *> (SAt <$> spanned syntaxP)
+    , parens (listP <|> SList <$> pure [])
     ]
   where
-    listP :: P Syntax
-    listP = (SRList <$> reservedP <|> pure SList) <*> many syntaxP
+    listP :: P SyntaxS
+    listP = (SRList <$> spanned reservedP <|> pure SList) <*> many (spanned syntaxP)
 
 reservedP :: P Reserved
 reservedP = choice
@@ -68,8 +63,13 @@ symP :: P Sym
 symP = token $ highlight H.Symbol $ fromString <$> some symCharP where
     symCharP = satisfy isSymChar
 
+-------------------------------------------------------------------------------
+-- Parser type
+-------------------------------------------------------------------------------
+
 newtype P a = P { runP :: Parser a }
-  deriving newtype (Functor, Applicative, Alternative, Parsing, CharParsing)
+  deriving newtype ( Functor, Applicative, Alternative, Monad, MonadPlus
+                   , Parsing, CharParsing, DeltaParsing)
 
 instance TokenParsing P where
     someSpace = P $ skipSome $ satisfy isSpace <|> commentP

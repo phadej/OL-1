@@ -16,33 +16,33 @@ import OL1.Syntax
 data Err
     = SomeErr String
       -- ^ /untyped/ error. Avoid.
-    | VariableNotInScope Syntax [Syntax]
+    | VariableNotInScope SyntaxI [SyntaxI]
       -- ^ variable not in the context provided
-    | TypeMismatch Syntax Syntax Syntax [Syntax]
+    | TypeMismatch SyntaxI SyntaxI SyntaxI [SyntaxI]
       -- ^ type mismatch in function application
-    | LambdaNotArrow Syntax Syntax [Syntax]
+    | LambdaNotArrow SyntaxI SyntaxI [SyntaxI]
       -- ^ Lambda is (annotated with) not an arrow type
-    | PolyNotForall Syntax Syntax [Syntax]
+    | PolyNotForall SyntaxI SyntaxI [SyntaxI]
       -- ^ type abstraction is (annotated with) not a polymorphic type
-    | PairNotProd Syntax Syntax [Syntax]
+    | PairNotProd SyntaxI SyntaxI [SyntaxI]
       -- ^ Pair is annotated with not a product type
-    | NotAFunction Syntax Syntax Syntax [Syntax]
+    | NotAFunction SyntaxI SyntaxI SyntaxI [SyntaxI]
       -- ^ apply warning in 'Term' type-checker.
-    | NotAPolyFunction Syntax Syntax Syntax [Syntax]
+    | NotAPolyFunction SyntaxI SyntaxI SyntaxI [SyntaxI]
       -- ^ type apply warning in 'Term' type-checker.
-    | NotATuple Syntax Syntax [Syntax]
+    | NotATuple SyntaxI SyntaxI [SyntaxI]
       -- ^ fst/snd  warning in 'Term' type-checker.
-    | ApplyPanic Syntax
+    | ApplyPanic SyntaxI
       -- ^ apply panic in 'Value' evaluator
-    | OccursFailure Syntax Syntax
+    | OccursFailure SyntaxI SyntaxI
       -- ^ Occurs failure, i.e infinite type
-    | MismatchFailure Syntax Syntax
+    | MismatchFailure SyntaxI SyntaxI
       -- ^ ...
-    | RigidMismatchFailure Syntax Syntax
+    | RigidMismatchFailure SyntaxI SyntaxI
       -- ^ ...
-    | EscapingRigidFailure Syntax
+    | EscapingRigidFailure SyntaxI
       -- ^ Skolem or rigid meta-variable escaping the scope
-    | RigidBindFailure Syntax Syntax
+    | RigidBindFailure SyntaxI SyntaxI
       -- ^ Skolem or rigid meta-variable escaping the scope
 
 instance Show Err where
@@ -131,7 +131,7 @@ prettyErr (RigidBindFailure a b) =
     "error:" </>
     "Couldn't match type" <+> prettySyntax b <+> "with actual rigid type" <+> prettySyntax a
 
-ppCheckedTerms :: [Syntax] -> PP.Doc () -> PP.Doc ()
+ppCheckedTerms :: [SyntaxI] -> PP.Doc () -> PP.Doc ()
 ppCheckedTerms [] doc = doc
 ppCheckedTerms ts doc = doc
     $$ "when checking expressions"

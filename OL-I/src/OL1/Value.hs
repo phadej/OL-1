@@ -302,7 +302,7 @@ instance (ToSyntax a, ToSyntax b) => ToSyntax (Intro a b) where
 instance (ToSyntax a, ToSyntax b) => ToSyntax (Elim a b) where
     toSyntax x = bitraverse toSyntax toSyntax x >>= toSyntaxElim
 
-toSyntaxIntro :: Intro Syntax Syntax -> SyntaxM
+toSyntaxIntro :: Intro SyntaxI SyntaxI -> SyntaxM
 toSyntaxIntro (VErr _err)  = error "some error!"
 toSyntaxIntro (VCoerce x)  = toSyntaxElim x
 toSyntaxIntro (VLam (Irr n) t b) = freshen n $ \s -> sfn
@@ -313,7 +313,7 @@ toSyntaxIntro (VLamTy (Irr n) b) = freshen n $ \s -> spoly
     (toSyntaxIntro (instantiate1MonoReturn (SSym s) b))
 toSyntaxIntro (VTuple xs) = stuple (map toSyntaxIntro xs)
 
-toSyntaxElim :: Elim Syntax Syntax -> SyntaxM
+toSyntaxElim :: Elim SyntaxI SyntaxI -> SyntaxM
 toSyntaxElim (VVar v)     = return v
 toSyntaxElim (VApp f x)   = sapp (toSyntaxElim f) (toSyntaxIntro x)
 toSyntaxElim (VAppTy x t) = sappTy (toSyntaxElim x) (toSyntaxMono t)
