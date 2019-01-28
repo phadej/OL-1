@@ -10,9 +10,9 @@ import Data.Char           (isSpace)
 import Data.String         (fromString)
 import Text.Trifecta
        (CharParsing, DeltaParsing, Parser, Parsing, Result (..), Spanned (..),
-       TokenParsing (..), char, choice, eof, highlight, manyTill, parens,
-       parseByteString, satisfy, skipSome, spanned, string, token, whiteSpace,
-       _errDoc)
+       TokenParsing (..), char, choice, eof, highlight, manyTill,
+        parens, notFollowedBy, parseByteString, satisfy, skipSome, spanned,
+       string, token, whiteSpace, _errDoc, try)
 import Text.Trifecta.Delta (Delta (Directed))
 
 import qualified Data.ByteString             as BS
@@ -55,13 +55,18 @@ syntaxP = choice
 
 reservedP :: P Reserved
 reservedP = choice
-    [ token $ highlight H.ReservedIdentifier $ r <$ string (reservedToString r)
+    [ token $ highlight H.ReservedIdentifier $ try $ r <$ do
+        s <- string (reservedToString r)
+        notFollowedBy symCharP
+        return s
     | r <- [ minBound .. maxBound ]
     ]
 
 symP :: P Sym
 symP = token $ highlight H.Symbol $ fromString <$> some symCharP where
-    symCharP = satisfy isSymChar
+
+symCharP :: P Char
+symCharP = satisfy isSymChar
 
 -------------------------------------------------------------------------------
 -- Parser type

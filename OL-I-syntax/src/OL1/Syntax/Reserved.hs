@@ -9,6 +9,10 @@ data Reserved
 
     | RTuple  -- ^ @tuple@
     | RSplit  -- ^ @split@
+
+    | REnum   -- ^ @enum@
+    | RMatch  -- ^ @match@
+
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 reservedToString :: Reserved -> String
@@ -18,6 +22,9 @@ reservedToString RFnType = "->"
 
 reservedToString RTuple = "tuple"
 reservedToString RSplit = "split"
+
+reservedToString REnum  = "enum"
+reservedToString RMatch = "match"
 
 instance QC.Arbitrary Reserved where
     arbitrary = QC.arbitraryBoundedEnum

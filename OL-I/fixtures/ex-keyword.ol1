@@ -1,0 +1,3 @@
+(postulate splitter (-> A B))
+(postulate a A)
+(splitter a)
