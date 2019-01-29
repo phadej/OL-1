@@ -3,8 +3,10 @@
 ; value
 (search ex (tuple (tuple) (tuple)))
 
-; identity
+; functions
 (search id (-> @A A A))
+(search flip (-> @A @B @C (-> A B C) (-> B A C)))
+(search compose (-> @A @B @C (-> B C) (-> A B) (-> A C)))
 
 ; identity with different type
 (search idPair (-> @A @B (tuple A B) (tuple A B)))
