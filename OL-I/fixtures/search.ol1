@@ -1,0 +1,27 @@
+; We can LJT proof search for values
+
+; value
+(search ex (tuple (tuple) (tuple)))
+
+; identity
+(search id (-> @A A A))
+
+; identity with different type
+(search idPair (-> @A @B (tuple A B) (tuple A B)))
+
+; pair functions
+(search swap (-> @A @B (tuple A B) (tuple B A)))
+(search fst (-> @A @B (tuple A B) A))
+(search snd (-> @A @B (tuple A B) A))
+
+; curry
+(search curry (-> @A @B @C (-> (tuple A B) C) A B C))
+(search uncurry (-> @A @B @C (-> A B C) (tuple A B) C))
+curry
+
+; bigger curry
+(search curry3 (-> @A @B @C @D (-> (tuple A B C) D) A B C D))
+
+; weird, to test last rule in LJT
+(search weird (-> @A @B (-> (-> A A) B) B))
+weird

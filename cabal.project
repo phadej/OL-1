@@ -18,7 +18,7 @@ package unification-rigid
 
 -- Warnings into errors
 package OL-I
-  ghc-options: -Werror
+--  ghc-options: -Werror
 
 package OL-I-syntax
   ghc-options: -Werror

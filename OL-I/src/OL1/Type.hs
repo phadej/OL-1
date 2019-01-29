@@ -20,7 +20,7 @@ data Mono a
     = T a
     | Mono a :-> Mono a
     | Tuple [Mono a]
-  deriving (Functor, Foldable, Traversable)
+  deriving (Ord, Functor, Foldable, Traversable)
 
 infixr 0 :->, :=>
 
