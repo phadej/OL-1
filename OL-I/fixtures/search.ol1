@@ -12,6 +12,7 @@
 (search idPair (-> @A @B (tuple A B) (tuple A B)))
 
 ; pair functions
+(search pair (-> @A @B (-> A B (tuple A B))))
 (search swap (-> @A @B (tuple A B) (tuple B A)))
 (search fst (-> @A @B (tuple A B) A))
 (search snd (-> @A @B (tuple A B) A))
