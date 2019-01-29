@@ -28,3 +28,19 @@ curry
 ; weird, to test last rule in LJT
 (search weird (-> @A @B (-> (-> A A) B) B))
 weird
+
+; search finds /almost/ the right type to make correct grate
+; Grate is fancy kind of optic.
+(search invalidGrateV2 (-> @A @B (-> (-> (tuple A A) A) B) (tuple B B)))
+
+; this is correct grateV2
+; it can be used to build and map over V2 (= homegenous pair)
+(define grateV2 (the
+  (-> @A @B (-> (-> (tuple A A) A) B) (tuple B B))
+  (fn (@A @B aab) (tuple (aab fst) (aab snd)))))
+
+(define mapV2
+  (fn (f p) (grateV2 (fn (i) (f (i p))))))
+
+(define pureV2
+  (fn (x) (grateV2 (fn (i) x))))
