@@ -5,6 +5,7 @@ import Control.Lens
 import Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import Control.Monad.State.Strict
 import Control.Monad.Writer       (Writer, execWriter, tell)
+import Data.Char                  (toLower)
 import Data.Foldable              (for_)
 import Data.List                  (sort)
 import System.Directory           (listDirectory)
@@ -18,10 +19,13 @@ import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import qualified Data.ByteString.UTF8       as UTF8
 import qualified Data.Map.Strict            as Map
+import qualified Data.Text.Short            as T
 
 import OL1
+import OL1.Search
 import OL1.Syntax
 import OL1.Syntax.Internal
+import OL1.Syntax.Sym      (Sym (..))
 
 main :: IO ()
 main = do
@@ -32,6 +36,9 @@ main = do
 -------------------------------------------------------------------------------
 -- Test utilities
 -------------------------------------------------------------------------------
+
+varName :: Sym -> String
+varName (Sym s) = map toLower (T.unpack s)
 
 mkCase :: FilePath -> TestTree
 mkCase name = goldenVsStringDiff name diff output $ do
@@ -53,9 +60,29 @@ mkCase name = goldenVsStringDiff name diff output $ do
                     header "POSTULATE"
                     ty <- either (throwError . renderErr) pure $
                         runParser (fromSyntax s1) :: M (Poly Sym)
-                    tellString $ pretty n ++ " := " ++ pretty ty
+                    tellString $ pretty n ++ " : " ++ pretty ty
 
                     postulated . at n ?= ty
+
+                SList ["search" :~ _, SSym n :~ _, s1] :~ _ -> do
+                    header "SEARCH"
+                    ty <- either (throwError . renderErr) pure $
+                        runParser (fromSyntax s1) :: M (Poly Sym)
+                    tellString $ pretty n ++ " = ? : " ++ pretty ty
+                    case search varName (const Nothing) ty of
+                        []      -> throwError "search failed"
+                        (expr : _) -> do
+                            header "FOUND"
+                            tellString $ pretty (expr :: Chk Sym Sym)
+
+                            -- check type
+                            _val <- either (throwError . show) pure $ check
+                                (const Nothing)
+                                expr
+                                ty
+
+                            -- define value
+                            defined %= ((n, Ann expr ty, ty) :)
 
                 SList ["define" :~ _, SSym n :~ _, s1] :~ _ -> do
                     header "DEFINE"
@@ -66,7 +93,6 @@ mkCase name = goldenVsStringDiff name diff output $ do
                 _ -> do
                     header "EVALUATE"
                     (expr, _ty, _val) <- inference s0
-
 
                     header "EXPANDED"
 

@@ -1,0 +1,46 @@
+; We can LJT proof search for values
+
+; value
+(search ex (tuple (tuple) (tuple)))
+
+; functions
+(search id (-> @A A A))
+(search flip (-> @A @B @C (-> A B C) (-> B A C)))
+(search compose (-> @A @B @C (-> B C) (-> A B) (-> A C)))
+
+; identity with different type
+(search idPair (-> @A @B (tuple A B) (tuple A B)))
+
+; pair functions
+(search pair (-> @A @B (-> A B (tuple A B))))
+(search swap (-> @A @B (tuple A B) (tuple B A)))
+(search fst (-> @A @B (tuple A B) A))
+(search snd (-> @A @B (tuple A B) A))
+
+; curry
+(search curry (-> @A @B @C (-> (tuple A B) C) A B C))
+(search uncurry (-> @A @B @C (-> A B C) (tuple A B) C))
+curry
+
+; bigger curry
+(search curry3 (-> @A @B @C @D (-> (tuple A B C) D) A B C D))
+
+; weird, to test last rule in LJT
+(search weird (-> @A @B (-> (-> A A) B) B))
+weird
+
+; search finds /almost/ the right type to make correct grate
+; Grate is fancy kind of optic.
+(search invalidGrateV2 (-> @A @B (-> (-> (tuple A A) A) B) (tuple B B)))
+
+; this is correct grateV2
+; it can be used to build and map over V2 (= homegenous pair)
+(define grateV2 (the
+  (-> @A @B (-> (-> (tuple A A) A) B) (tuple B B))
+  (fn (@A @B aab) (tuple (aab fst) (aab snd)))))
+
+(define mapV2
+  (fn (f p) (grateV2 (fn (i) (f (i p))))))
+
+(define pureV2
+  (fn (x) (grateV2 (fn (i) x))))

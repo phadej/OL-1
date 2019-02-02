@@ -67,6 +67,7 @@ library
     OL1.Check
     OL1.Error
     OL1.Expr
+    OL1.Search
     OL1.Synth
     OL1.Type
     OL1.Value
@@ -87,6 +88,8 @@ test-suite fixtures
     , OL-I
     , OL-I-syntax
     , pretty-compact
+    , recursion-schemes  ^>=5.1
+    , text-short
     , trifecta
 
   -- test only GHC boot libs
