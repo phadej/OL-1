@@ -1,14 +1,10 @@
 module OL1.Syntax.Internal (prettyShow) where
 
-import qualified Text.PrettyPrint.ANSI.Leijen as A
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Render.String as PP
 
-prettyShow :: A.Pretty a => a -> String
-prettyShow x = A.displayS (stripSGR $ A.renderSmart 0.4 80 $ A.pretty x) ""
+prettyShow :: PP.Doc a -> String
+prettyShow x = PP.renderString (PP.layoutPretty layoutOptions (PP.unAnnotate x))
+  where
+    layoutOptions = PP.LayoutOptions { PP.layoutPageWidth = PP.AvailablePerLine 80 1 }
 
-stripSGR :: A.SimpleDoc -> A.SimpleDoc
-stripSGR A.SFail         = A.SFail
-stripSGR A.SEmpty        = A.SEmpty
-stripSGR (A.SChar x d)   = A.SChar x (stripSGR d)
-stripSGR (A.SText i x d) = A.SText i x (stripSGR d)
-stripSGR (A.SLine i d)   = A.SLine i (stripSGR d)
-stripSGR (A.SSGR _ d)    = stripSGR d

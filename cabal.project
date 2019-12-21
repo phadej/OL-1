@@ -25,3 +25,5 @@ package OL-I-syntax
 
 package unification-rigid
   ghc-options: -Werror
+
+allow-newer: pretty-compact:base-compat

@@ -12,7 +12,7 @@ import System.Directory           (listDirectory)
 import System.FilePath            (takeExtension, (-<.>), (</>))
 import Test.Tasty                 (TestTree, defaultMain, testGroup)
 import Test.Tasty.Golden          (goldenVsStringDiff)
-import Text.Trifecta              (render)
+import Text.Trifecta              (render, prettyRendering)
 
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as LBS
@@ -130,7 +130,7 @@ mkCase name = goldenVsStringDiff name diff output $ do
                 ]
 
     renderErr (Nothing, err) = err
-    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (render sp)
+    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (prettyRendering (render sp))
 
     header :: String -> M ()
     header n = tell

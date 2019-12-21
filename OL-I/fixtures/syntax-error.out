@@ -8,5 +8,5 @@
 === EVALUATE ================================================================
 ERROR
 split variables should be symbols
-(split p ((the x A)) x) 
-          ~~~~~~~~~     
+2 | (split p ((the x A)) x) 
+  |           ~~~~~~~~~     

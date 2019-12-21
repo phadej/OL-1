@@ -7,7 +7,7 @@ import Control.Applicative (Alternative (..))
 import Control.Lens        ((^.))
 import Control.Monad       (MonadPlus (..))
 import Data.Bifunctor      (first)
-import Text.Trifecta       (Spanned (..), render, Span, span)
+import Text.Trifecta       (Span, Spanned (..), prettyRendering, render, span)
 
 import OL1.Syntax.Internal
 import OL1.Syntax.Sym
@@ -63,4 +63,4 @@ eitherFromSyntax s
     $ Left <$> fromSyntax s <|> Right <$> fromSyntax s
   where
     renderErr (Nothing, err) = err
-    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (render sp)
+    renderErr (Just sp, err) = err ++ "\n" ++ prettyShow (prettyRendering (render sp))

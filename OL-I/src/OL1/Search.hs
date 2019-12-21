@@ -5,7 +5,7 @@ import Bound.Var                  (Var (..))
 import Control.Monad.State.Strict (StateT (..), evalStateT, get, put)
 import Data.Bifunctor             (first)
 import Data.Char                  (toLower)
-import Data.Fin                   (Fin)
+import Data.Fin                   (Fin (..))
 import Data.Foldable              (asum)
 import Data.Functor.Foldable      (cata)
 import Data.Map                   (Map)
@@ -314,5 +314,5 @@ nlam_ (x ::: xs) b = Lam (Irr x) (toScopeH b2)
     b2 = nlam_ xs b1
 
     k :: Sym -> Fin ('S m) -> Either (Fin m) (Var ISym a)
-    k y Fin.Z     = Right (B (Irr y))
-    k _ (Fin.S m) = Left m
+    k y FZ     = Right (B (Irr y))
+    k _ (FS m) = Left m

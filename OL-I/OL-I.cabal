@@ -10,7 +10,7 @@ description:
 author:             Oleg Grenrus <oleg.grenrus@iki.fi>
 maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>
 license:            GPL-2.0-or-later
-tested-with:        ghc ==8.2.2 || ==8.4.4 || ==8.6.3
+tested-with:        GHC ==8.2.2 || ==8.4.4 || ==8.6.5 || ==8.8.1
 extra-source-files:
   fixtures/*.ol1
   fixtures/*.out
@@ -42,7 +42,7 @@ library
 
   -- GHC boot libraries
   build-depends:
-    , base          ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0
+    , base          ^>=4.10.1.0 || ^>=4.11.1.0 || ^>=4.12.0.0 || ^>=4.13.0.0
     , containers    ^>=0.5.7.1 || ^>=0.6.0.1
     , mtl           ^>=2.2.2
     , text          ^>=1.2.3.0
@@ -50,15 +50,15 @@ library
 
   -- other dependencies
   build-depends:
-    , base-compat        ^>=0.10.5
+    , base-compat        ^>=0.11
     , bound              ^>=2.0.1
     , bound-extras       ^>=0
-    , fin                ^>=0.0.1
+    , fin                ^>=0.1.1
     , OL-I-syntax        ^>=1
     , pretty-compact     ^>=3.0
     , recursion-schemes  ^>=5.1
     , unification-rigid  ^>=0
-    , vec                ^>=0.1
+    , vec                ^>=0.3
 
   -- tmp
   build-depends:      text-short
@@ -100,7 +100,7 @@ test-suite fixtures
 
   -- test only dependencies
   build-depends:
-    , lens          ^>=4.17
+    , lens          ^>=4.18.1
     , tasty         ^>=1.2
     , tasty-golden  ^>=2.3.2
     , utf8-string   ^>=1.0.1.1

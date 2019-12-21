@@ -41,20 +41,20 @@ hoistSyntax nt = go where
 
 arbitrarySyntax :: QC.Gen SyntaxI
 arbitrarySyntax = QC.sized $ \n ->
-        if n <= 0
-        then QC.oneof
-            [ SSym <$> QC.arbitrary
-            , SAt . I . SSym  <$> QC.arbitrary
-            , pure (SList [])
-            ]
-        else QC.oneof
-            [ SSym <$> QC.arbitrary
-            , SAt . I . SSym  <$> QC.arbitrary
-            , SList . map I <$> QC.listOf (QC.scale intLog2 arbitrarySyntax)
-            , (\r s -> SRList (I r) (map I s))
-                  <$> QC.arbitrary
-                  <*> QC.listOf (QC.scale intLog2 arbitrarySyntax)
-            ]
+    if n <= 0
+    then QC.oneof
+        [ SSym <$> QC.arbitrary
+        , SAt . I . SSym  <$> QC.arbitrary
+        , pure (SList [])
+        ]
+    else QC.oneof
+        [ SSym <$> QC.arbitrary
+        , SAt . I . SSym  <$> QC.arbitrary
+        , SList . map I <$> QC.listOf (QC.scale intLog2 arbitrarySyntax)
+        , (\r s -> SRList (I r) (map I s))
+              <$> QC.arbitrary
+              <*> QC.listOf (QC.scale intLog2 arbitrarySyntax)
+        ]
 
 instance a ~ I => QC.Arbitrary (Syntax a) where
     arbitrary = arbitrarySyntax
